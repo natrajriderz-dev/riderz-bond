@@ -39,7 +39,7 @@ Wait 1-2 minutes
 
 Step 4: Access Your Demo
 Your site will be live at:
-https://YOUR-USERNAME.github.io/trusthub-demo/
+https://natrajriderz-dev.github.io/trusthub-demo/
 Replace YOUR-USERNAME with your actual GitHub username!
 🎨 Features
 🏠 Landing Page

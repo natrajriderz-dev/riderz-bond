@@ -1,0 +1,966 @@
+// screens/auth/AuthStack.js
+const React = require('react');
+const {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
+  Platform
+} = require('react-native');
+const { createStackNavigator } = require('@react-navigation/stack');
+const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+const ImagePicker = require('expo-image-picker');
+const axios = require('axios');
+const { useState, useEffect } = React;
+
+const Stack = createStackNavigator();
+
+// API Configuration
+const API = axios.create({
+  baseURL: 'http://100.115.92.194:3001/api',
+  timeout: 10000,
+});
+
+// Colors
+const colors = {
+  background: '#121212',
+  surface: '#1E1E1E',
+  primary: '#D97706',
+  text: '#FFFFFF',
+  textSecondary: '#9CA3AF',
+  error: '#EF4444',
+  success: '#10B981',
+  border: '#2D2D2D',
+};
+
+// Styles
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    padding: 24,
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+    padding: 24,
+  },
+  logo: {
+    width: 120,
+    height: 120,
+    marginBottom: 32,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 32,
+  },
+  buttonContainer: {
+    width: '100%',
+    marginTop: 16,
+  },
+  button: {
+    backgroundColor: colors.primary,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    marginVertical: 8,
+    width: '100%',
+    alignItems: 'center',
+  },
+  buttonOutline: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  buttonText: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  buttonOutlineText: {
+    color: colors.primary,
+  },
+  input: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    marginVertical: 8,
+    color: colors.text,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    width: '100%',
+  },
+  inputLabel: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    marginBottom: 4,
+    marginTop: 16,
+    alignSelf: 'flex-start',
+  },
+  phoneContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+  },
+  countryCode: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    marginVertical: 8,
+    marginRight: 8,
+    color: colors.text,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    width: 80,
+    textAlign: 'center',
+  },
+  phoneInput: {
+    flex: 1,
+  },
+  otpContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginVertical: 16,
+  },
+  otpInput: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    width: 60,
+    height: 60,
+    textAlign: 'center',
+    color: colors.text,
+    fontSize: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  photoContainer: {
+    alignItems: 'center',
+    marginVertical: 24,
+  },
+  photoPreview: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: colors.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  photoImage: {
+    width: 116,
+    height: 116,
+    borderRadius: 58,
+  },
+  photoPlaceholder: {
+    alignItems: 'center',
+  },
+  photoPlaceholderText: {
+    color: colors.textSecondary,
+    marginTop: 8,
+    fontSize: 14,
+  },
+  uploadButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  uploadButtonText: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  linkText: {
+    color: colors.primary,
+    fontSize: 14,
+    marginTop: 16,
+  },
+  errorText: {
+    color: colors.error,
+    fontSize: 14,
+    marginTop: 4,
+    alignSelf: 'flex-start',
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  genderButton: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginHorizontal: 4,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  genderButtonSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + '20',
+  },
+  genderText: {
+    color: colors.text,
+  },
+  genderTextSelected: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+});
+
+// Splash Screen
+const SplashScreen = ({ navigation }) => {
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        // Simulate splash screen delay
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        const token = await AsyncStorage.getItem('userToken');
+        const userData = await AsyncStorage.getItem('userData');
+        
+        if (token && userData) {
+          // Navigate to main app
+          console.log('Session found, navigating to main app');
+          // navigation.replace('MainApp');
+        } else {
+          navigation.replace('Landing');
+        }
+      } catch (error) {
+        console.error('Session check error:', error);
+        navigation.replace('Landing');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkSession();
+  }, []);
+
+  return (
+    <View style={styles.centerContainer}>
+      <View style={styles.logo}>
+        {/* Replace with your actual logo */}
+        <View style={{ 
+          width: 120, 
+          height: 120, 
+          borderRadius: 60, 
+          backgroundColor: colors.primary,
+          justifyContent: 'center',
+          alignItems: 'center'
+        }}>
+          <Text style={{ fontSize: 48, color: colors.text, fontWeight: 'bold' }}>BOND</Text>
+        </View>
+      </View>
+      <Text style={styles.title}>BOND</Text>
+      <Text style={styles.subtitle}>Find your perfect match</Text>
+      {isLoading && <ActivityIndicator size="large" color={colors.primary} />}
+    </View>
+  );
+};
+
+// Landing Screen
+const LandingScreen = ({ navigation }) => {
+  return (
+    <View style={styles.centerContainer}>
+      <View style={styles.logo}>
+        <View style={{ 
+          width: 100, 
+          height: 100, 
+          borderRadius: 50, 
+          backgroundColor: colors.primary,
+          justifyContent: 'center',
+          alignItems: 'center'
+        }}>
+          <Text style={{ fontSize: 36, color: colors.text, fontWeight: 'bold' }}>BOND</Text>
+        </View>
+      </View>
+      
+      <Text style={styles.title}>Welcome to BOND</Text>
+      <Text style={styles.subtitle}>
+        The premium dating app for meaningful connections
+      </Text>
+
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity 
+          style={styles.button}
+          onPress={() => navigation.navigate('Login')}
+        >
+          <Text style={styles.buttonText}>Login</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[styles.button, styles.buttonOutline]}
+          onPress={() => navigation.navigate('Signup')}
+        >
+          <Text style={[styles.buttonText, styles.buttonOutlineText]}>Create Account</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
+
+// Login Screen
+const LoginScreen = ({ navigation }) => {
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [countryCode, setCountryCode] = useState('+1');
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [showOtp, setShowOtp] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSendOtp = async () => {
+    if (!phoneNumber || phoneNumber.length < 10) {
+      setError('Please enter a valid phone number');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      // API call to send OTP
+      const response = await API.post('/auth/register/send-otp', {
+        phone: `${countryCode}${phoneNumber}`
+      });
+
+      if (response.data.success) {
+        setShowOtp(true);
+        Alert.alert('OTP Sent', 'Please check your phone for the verification code');
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to send OTP');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    const otpString = otp.join('');
+    if (otpString.length !== 6) {
+      setError('Please enter complete OTP');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await API.post('/auth/login/verify-otp', {
+        phone: `${countryCode}${phoneNumber}`,
+        otp: otpString
+      });
+
+      if (response.data.success) {
+        await AsyncStorage.setItem('userToken', response.data.token);
+        await AsyncStorage.setItem('userData', JSON.stringify(response.data.user));
+        
+        console.log('Login successful, navigating to main app');
+        // navigation.replace('MainApp');
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Invalid OTP');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    try {
+      // Implement Google Sign-In
+      console.log('Google login pressed');
+      Alert.alert('Coming Soon', 'Google login will be available soon');
+    } catch (err) {
+      setError('Google login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOtpChange = (text, index) => {
+    const newOtp = [...otp];
+    newOtp[index] = text;
+    setOtp(newOtp);
+
+    // Auto-focus next input
+    if (text && index < 5) {
+      const nextInput = `otpInput${index + 1}`;
+      // Focus next input logic would go here
+    }
+  };
+
+  return (
+    <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <Text style={styles.title}>Welcome Back</Text>
+      <Text style={styles.subtitle}>Login to continue your journey</Text>
+
+      {!showOtp ? (
+        <>
+          <Text style={styles.inputLabel}>Phone Number</Text>
+          <View style={styles.phoneContainer}>
+            <TextInput
+              style={styles.countryCode}
+              value={countryCode}
+              onChangeText={setCountryCode}
+              placeholder="+1"
+              placeholderTextColor={colors.textSecondary}
+            />
+            <TextInput
+              style={[styles.input, styles.phoneInput]}
+              value={phoneNumber}
+              onChangeText={setPhoneNumber}
+              placeholder="Phone number"
+              placeholderTextColor={colors.textSecondary}
+              keyboardType="phone-pad"
+              maxLength={10}
+            />
+          </View>
+
+          <TouchableOpacity 
+            style={styles.button}
+            onPress={handleSendOtp}
+            disabled={loading}
+          >
+            <Text style={styles.buttonText}>
+              {loading ? 'Sending...' : 'Send OTP'}
+            </Text>
+          </TouchableOpacity>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 24 }}>
+            <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+            <Text style={{ color: colors.textSecondary, marginHorizontal: 16 }}>OR</Text>
+            <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+          </View>
+
+          <TouchableOpacity 
+            style={[styles.button, styles.buttonOutline]}
+            onPress={handleGoogleLogin}
+          >
+            <Text style={[styles.buttonText, styles.buttonOutlineText]}>
+              Continue with Google
+            </Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        <>
+          <Text style={styles.inputLabel}>Enter Verification Code</Text>
+          <Text style={[styles.subtitle, { marginBottom: 8 }]}>
+            Sent to {countryCode} {phoneNumber}
+          </Text>
+          
+          <View style={styles.otpContainer}>
+            {otp.map((digit, index) => (
+              <TextInput
+                key={index}
+                style={styles.otpInput}
+                value={digit}
+                onChangeText={(text) => handleOtpChange(text, index)}
+                keyboardType="number-pad"
+                maxLength={1}
+                selectTextOnFocus
+              />
+            ))}
+          </View>
+
+          <TouchableOpacity 
+            style={styles.button}
+            onPress={handleVerifyOtp}
+            disabled={loading}
+          >
+            <Text style={styles.buttonText}>
+              {loading ? 'Verifying...' : 'Verify & Login'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => setShowOtp(false)}>
+            <Text style={styles.linkText}>Change phone number</Text>
+          </TouchableOpacity>
+        </>
+      )}
+
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+      <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
+        <Text style={[styles.linkText, { textAlign: 'center', marginTop: 24 }]}>
+          Don't have an account? Sign up
+        </Text>
+      </TouchableOpacity>
+
+      {loading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      )}
+    </ScrollView>
+  );
+};
+
+// Signup Screen
+const SignupScreen = ({ navigation }) => {
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [countryCode, setCountryCode] = useState('+1');
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [showOtp, setShowOtp] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [verificationId, setVerificationId] = useState('');
+
+  const handleSendOtp = async () => {
+    if (!phoneNumber || phoneNumber.length < 10) {
+      setError('Please enter a valid phone number');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await API.post('/auth/register/send-otp', {
+        phone: `${countryCode}${phoneNumber}`,
+        isSignup: true
+      });
+
+      if (response.data.success) {
+        setVerificationId(response.data.verificationId);
+        setShowOtp(true);
+        Alert.alert('OTP Sent', 'Please check your phone for the verification code');
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to send OTP');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    const otpString = otp.join('');
+    if (otpString.length !== 6) {
+      setError('Please enter complete OTP');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await API.post('/auth/register/verify-otp', {
+        phone: `${countryCode}${phoneNumber}`,
+        otp: otpString,
+        verificationId
+      });
+
+      if (response.data.success) {
+        // Store temp token for basic info step
+        await AsyncStorage.setItem('tempToken', response.data.tempToken);
+        navigation.navigate('BasicInfo', { 
+          phone: `${countryCode}${phoneNumber}` 
+        });
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Invalid OTP');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <Text style={styles.title}>Create Account</Text>
+      <Text style={styles.subtitle}>Join BOND to find meaningful connections</Text>
+
+      {!showOtp ? (
+        <>
+          <Text style={styles.inputLabel}>Phone Number</Text>
+          <View style={styles.phoneContainer}>
+            <TextInput
+              style={styles.countryCode}
+              value={countryCode}
+              onChangeText={setCountryCode}
+              placeholder="+1"
+              placeholderTextColor={colors.textSecondary}
+            />
+            <TextInput
+              style={[styles.input, styles.phoneInput]}
+              value={phoneNumber}
+              onChangeText={setPhoneNumber}
+              placeholder="Phone number"
+              placeholderTextColor={colors.textSecondary}
+              keyboardType="phone-pad"
+              maxLength={10}
+            />
+          </View>
+
+          <TouchableOpacity 
+            style={styles.button}
+            onPress={handleSendOtp}
+            disabled={loading}
+          >
+            <Text style={styles.buttonText}>
+              {loading ? 'Sending...' : 'Send Verification Code'}
+            </Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        <>
+          <Text style={styles.inputLabel}>Enter Verification Code</Text>
+          <Text style={[styles.subtitle, { marginBottom: 8 }]}>
+            Sent to {countryCode} {phoneNumber}
+          </Text>
+          
+          <View style={styles.otpContainer}>
+            {otp.map((digit, index) => (
+              <TextInput
+                key={index}
+                style={styles.otpInput}
+                value={digit}
+                onChangeText={(text) => {
+                  const newOtp = [...otp];
+                  newOtp[index] = text;
+                  setOtp(newOtp);
+                }}
+                keyboardType="number-pad"
+                maxLength={1}
+                selectTextOnFocus
+              />
+            ))}
+          </View>
+
+          <TouchableOpacity 
+            style={styles.button}
+            onPress={handleVerifyOtp}
+            disabled={loading}
+          >
+            <Text style={styles.buttonText}>
+              {loading ? 'Verifying...' : 'Verify & Continue'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => setShowOtp(false)}>
+            <Text style={styles.linkText}>Change phone number</Text>
+          </TouchableOpacity>
+        </>
+      )}
+
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+      <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+        <Text style={[styles.linkText, { textAlign: 'center', marginTop: 24 }]}>
+          Already have an account? Login
+        </Text>
+      </TouchableOpacity>
+
+      {loading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      )}
+    </ScrollView>
+  );
+};
+
+// Basic Info Screen
+const BasicInfoScreen = ({ navigation, route }) => {
+  const { phone } = route.params || {};
+  const [fullName, setFullName] = useState('');
+  const [dob, setDob] = useState('');
+  const [gender, setGender] = useState('');
+  const [city, setCity] = useState('');
+  const [photo, setPhoto] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      if (Platform.OS !== 'web') {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission needed', 'Please grant camera roll permissions to upload photos');
+        }
+      }
+    })();
+  }, []);
+
+  const pickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        setPhoto(result.assets[0]);
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Failed to pick image');
+    }
+  };
+
+  const takePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Please grant camera permissions to take photos');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        setPhoto(result.assets[0]);
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Failed to take photo');
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!fullName || !dob || !gender || !city || !photo) {
+      setError('Please fill in all fields and upload a photo');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      // Create form data for photo upload
+      const formData = new FormData();
+      formData.append('fullName', fullName);
+      formData.append('dob', dob);
+      formData.append('gender', gender);
+      formData.append('city', city);
+      formData.append('phone', phone);
+      
+      if (photo) {
+        formData.append('photo', {
+          uri: photo.uri,
+          type: 'image/jpeg',
+          name: 'profile.jpg',
+        });
+      }
+
+      const tempToken = await AsyncStorage.getItem('tempToken');
+      
+      const response = await API.post('/users/profile', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${tempToken}`
+        },
+      });
+
+      if (response.data.success) {
+        await AsyncStorage.setItem('userToken', response.data.token);
+        await AsyncStorage.setItem('userData', JSON.stringify(response.data.user));
+        await AsyncStorage.removeItem('tempToken');
+        
+        console.log('Profile completed, navigating to main app');
+        // navigation.replace('MainApp');
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to complete profile');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePhotoUpload = () => {
+    Alert.alert(
+      'Upload Photo',
+      'Choose a photo for your profile',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Take Photo', onPress: takePhoto },
+        { text: 'Choose from Gallery', onPress: pickImage },
+      ]
+    );
+  };
+
+  return (
+    <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <Text style={styles.title}>Complete Your Profile</Text>
+      <Text style={styles.subtitle}>
+        Tell us a bit about yourself to get started
+      </Text>
+
+      <View style={styles.photoContainer}>
+        <TouchableOpacity onPress={handlePhotoUpload} style={styles.photoPreview}>
+          {photo ? (
+            <Image source={{ uri: photo.uri }} style={styles.photoImage} />
+          ) : (
+            <View style={styles.photoPlaceholder}>
+              <Text style={{ fontSize: 32, color: colors.textSecondary }}>📷</Text>
+              <Text style={styles.photoPlaceholderText}>Add Photo</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.uploadButton} onPress={handlePhotoUpload}>
+          <Text style={styles.uploadButtonText}>Upload Profile Photo</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Text style={styles.inputLabel}>Full Name</Text>
+      <TextInput
+        style={styles.input}
+        value={fullName}
+        onChangeText={setFullName}
+        placeholder="Enter your full name"
+        placeholderTextColor={colors.textSecondary}
+      />
+
+      <Text style={styles.inputLabel}>Date of Birth</Text>
+      <TextInput
+        style={styles.input}
+        value={dob}
+        onChangeText={setDob}
+        placeholder="DD/MM/YYYY"
+        placeholderTextColor={colors.textSecondary}
+      />
+
+      <Text style={styles.inputLabel}>Gender</Text>
+      <View style={styles.row}>
+        {['Male', 'Female', 'Other'].map((g) => (
+          <TouchableOpacity
+            key={g}
+            style={[
+              styles.genderButton,
+              gender === g && styles.genderButtonSelected,
+            ]}
+            onPress={() => setGender(g)}
+          >
+            <Text
+              style={[
+                styles.genderText,
+                gender === g && styles.genderTextSelected,
+              ]}
+            >
+              {g}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <Text style={styles.inputLabel}>City</Text>
+      <TextInput
+        style={styles.input}
+        value={city}
+        onChangeText={setCity}
+        placeholder="Enter your city"
+        placeholderTextColor={colors.textSecondary}
+      />
+
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+      <TouchableOpacity 
+        style={[styles.button, { marginTop: 32 }]}
+        onPress={handleSubmit}
+        disabled={loading}
+      >
+        <Text style={styles.buttonText}>
+          {loading ? 'Creating Account...' : 'Complete Registration'}
+        </Text>
+      </TouchableOpacity>
+
+      {loading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      )}
+    </ScrollView>
+  );
+};
+
+// Auth Stack Navigator
+const AuthStack = () => {
+  return (
+    <Stack.Navigator
+      initialRouteName="Splash"
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: colors.background,
+          elevation: 0,
+          shadowOpacity: 0,
+          borderBottomWidth: 0,
+        },
+        headerTintColor: colors.text,
+        headerTitleStyle: {
+          fontWeight: 'bold',
+        },
+        headerBackTitleVisible: false,
+        cardStyle: { backgroundColor: colors.background },
+      }}
+    >
+      <Stack.Screen 
+        name="Splash" 
+        component={SplashScreen} 
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen 
+        name="Landing" 
+        component={LandingScreen} 
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen 
+        name="Login" 
+        component={LoginScreen} 
+        options={{ title: '' }}
+      />
+      <Stack.Screen 
+        name="Signup" 
+        component={SignupScreen} 
+        options={{ title: '' }}
+      />
+      <Stack.Screen 
+        name="BasicInfo" 
+        component={BasicInfoScreen} 
+        options={{ title: 'Profile Info' }}
+      />
+    </Stack.Navigator>
+  );
+};
+
+module.exports = AuthStack;

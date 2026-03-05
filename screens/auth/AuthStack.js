@@ -15,16 +15,10 @@ const {
 const { createStackNavigator } = require('@react-navigation/stack');
 const AsyncStorage = require('@react-native-async-storage/async-storage').default;
 const ImagePicker = require('expo-image-picker');
-const axios = require('axios');
+const { supabase } = require('../../supabase');
 const { useState, useEffect } = React;
 
 const Stack = createStackNavigator();
-
-// API Configuration
-const API = axios.create({
-  baseURL: 'http://100.115.92.194:3001/api',
-  timeout: 10000,
-});
 
 // Colors
 const colors = {
@@ -253,10 +247,10 @@ const SplashScreen = ({ navigation }) => {
       try {
         // Simulate splash screen delay
         await new Promise(resolve => setTimeout(resolve, 2000));
-        
+
         const token = await AsyncStorage.getItem('userToken');
         const userData = await AsyncStorage.getItem('userData');
-        
+
         if (token && userData) {
           // Navigate to main app
           console.log('Session found, navigating to main app');
@@ -279,10 +273,10 @@ const SplashScreen = ({ navigation }) => {
     <View style={styles.centerContainer}>
       <View style={styles.logo}>
         {/* Replace with your actual logo */}
-        <View style={{ 
-          width: 120, 
-          height: 120, 
-          borderRadius: 60, 
+        <View style={{
+          width: 120,
+          height: 120,
+          borderRadius: 60,
           backgroundColor: colors.primary,
           justifyContent: 'center',
           alignItems: 'center'
@@ -302,10 +296,10 @@ const LandingScreen = ({ navigation }) => {
   return (
     <View style={styles.centerContainer}>
       <View style={styles.logo}>
-        <View style={{ 
-          width: 100, 
-          height: 100, 
-          borderRadius: 50, 
+        <View style={{
+          width: 100,
+          height: 100,
+          borderRadius: 50,
           backgroundColor: colors.primary,
           justifyContent: 'center',
           alignItems: 'center'
@@ -313,27 +307,36 @@ const LandingScreen = ({ navigation }) => {
           <Text style={{ fontSize: 36, color: colors.text, fontWeight: 'bold' }}>BOND</Text>
         </View>
       </View>
-      
+
       <Text style={styles.title}>Welcome to BOND</Text>
       <Text style={styles.subtitle}>
         The premium dating app for meaningful connections
       </Text>
 
       <View style={styles.buttonContainer}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.button}
           onPress={() => navigation.navigate('Login')}
         >
           <Text style={styles.buttonText}>Login</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.button, styles.buttonOutline]}
           onPress={() => navigation.navigate('Signup')}
         >
           <Text style={[styles.buttonText, styles.buttonOutlineText]}>Create Account</Text>
         </TouchableOpacity>
       </View>
+      <TouchableOpacity
+        onPress={() => {
+          navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+        }}
+        style={{ marginTop: 40, backgroundColor: '#1F2937', paddingHorizontal: 28, paddingVertical: 12, borderRadius: 25, borderWidth: 1, borderColor: '#D97706' }}
+      >
+        <Text style={{ color: '#D97706', fontSize: 14, fontWeight: '700' }}>⚡ Dev Skip → Main App</Text>
+      </TouchableOpacity>
+      <Text style={{ color: '#6B7280', fontSize: 11, marginTop: 8 }}>Remove before launch</Text>
     </View>
   );
 };
@@ -357,17 +360,17 @@ const LoginScreen = ({ navigation }) => {
     setError('');
 
     try {
-      // API call to send OTP
-      const response = await API.post('/auth/register/send-otp', {
-        phone: `${countryCode}${phoneNumber}`
+      // Supabase call to send OTP
+      const { data, error: signInError } = await supabase.auth.signInWithOtp({
+        phone: `${countryCode}${phoneNumber}`,
       });
 
-      if (response.data.success) {
-        setShowOtp(true);
-        Alert.alert('OTP Sent', 'Please check your phone for the verification code');
-      }
+      if (signInError) throw signInError;
+
+      setShowOtp(true);
+      Alert.alert('OTP Sent', 'Please check your phone for the verification code');
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to send OTP');
+      setError(err.message || 'Failed to send OTP');
     } finally {
       setLoading(false);
     }
@@ -384,20 +387,24 @@ const LoginScreen = ({ navigation }) => {
     setError('');
 
     try {
-      const response = await API.post('/auth/login/verify-otp', {
+      const { data: { session, user }, error: verifyError } = await supabase.auth.verifyOtp({
         phone: `${countryCode}${phoneNumber}`,
-        otp: otpString
+        token: otpString,
+        type: 'sms'
       });
 
-      if (response.data.success) {
-        await AsyncStorage.setItem('userToken', response.data.token);
-        await AsyncStorage.setItem('userData', JSON.stringify(response.data.user));
-        
+      if (verifyError) throw verifyError;
+
+      if (session) {
+        await AsyncStorage.setItem('userToken', session.access_token);
+        await AsyncStorage.setItem('userData', JSON.stringify(user));
+
         console.log('Login successful, navigating to main app');
-        // navigation.replace('MainApp');
+        // Let App.js redirect or handle navigation here
+        navigation.replace('Main');
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Invalid OTP');
+      setError(err.message || 'Invalid OTP');
     } finally {
       setLoading(false);
     }
@@ -455,7 +462,7 @@ const LoginScreen = ({ navigation }) => {
             />
           </View>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.button}
             onPress={handleSendOtp}
             disabled={loading}
@@ -471,7 +478,7 @@ const LoginScreen = ({ navigation }) => {
             <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
           </View>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.button, styles.buttonOutline]}
             onPress={handleGoogleLogin}
           >
@@ -486,7 +493,7 @@ const LoginScreen = ({ navigation }) => {
           <Text style={[styles.subtitle, { marginBottom: 8 }]}>
             Sent to {countryCode} {phoneNumber}
           </Text>
-          
+
           <View style={styles.otpContainer}>
             {otp.map((digit, index) => (
               <TextInput
@@ -501,7 +508,7 @@ const LoginScreen = ({ navigation }) => {
             ))}
           </View>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.button}
             onPress={handleVerifyOtp}
             disabled={loading}
@@ -554,18 +561,16 @@ const SignupScreen = ({ navigation }) => {
     setError('');
 
     try {
-      const response = await API.post('/auth/register/send-otp', {
+      const { data, error: signUpError } = await supabase.auth.signInWithOtp({
         phone: `${countryCode}${phoneNumber}`,
-        isSignup: true
       });
 
-      if (response.data.success) {
-        setVerificationId(response.data.verificationId);
-        setShowOtp(true);
-        Alert.alert('OTP Sent', 'Please check your phone for the verification code');
-      }
+      if (signUpError) throw signUpError;
+
+      setShowOtp(true);
+      Alert.alert('OTP Sent', 'Please check your phone for the verification code');
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to send OTP');
+      setError(err.message || 'Failed to send OTP');
     } finally {
       setLoading(false);
     }
@@ -582,21 +587,22 @@ const SignupScreen = ({ navigation }) => {
     setError('');
 
     try {
-      const response = await API.post('/auth/register/verify-otp', {
+      const { data: { session }, error: verifyError } = await supabase.auth.verifyOtp({
         phone: `${countryCode}${phoneNumber}`,
-        otp: otpString,
-        verificationId
+        token: otpString,
+        type: 'sms'
       });
 
-      if (response.data.success) {
-        // Store temp token for basic info step
-        await AsyncStorage.setItem('tempToken', response.data.tempToken);
-        navigation.navigate('BasicInfo', { 
-          phone: `${countryCode}${phoneNumber}` 
+      if (verifyError) throw verifyError;
+
+      if (session) {
+        // Proceed to basic info
+        navigation.navigate('BasicInfo', {
+          phone: `${countryCode}${phoneNumber}`
         });
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Invalid OTP');
+      setError(err.message || 'Invalid OTP');
     } finally {
       setLoading(false);
     }
@@ -629,7 +635,7 @@ const SignupScreen = ({ navigation }) => {
             />
           </View>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.button}
             onPress={handleSendOtp}
             disabled={loading}
@@ -645,7 +651,7 @@ const SignupScreen = ({ navigation }) => {
           <Text style={[styles.subtitle, { marginBottom: 8 }]}>
             Sent to {countryCode} {phoneNumber}
           </Text>
-          
+
           <View style={styles.otpContainer}>
             {otp.map((digit, index) => (
               <TextInput
@@ -664,7 +670,7 @@ const SignupScreen = ({ navigation }) => {
             ))}
           </View>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.button}
             onPress={handleVerifyOtp}
             disabled={loading}
@@ -768,39 +774,62 @@ const BasicInfoScreen = ({ navigation, route }) => {
     setError('');
 
     try {
-      // Create form data for photo upload
-      const formData = new FormData();
-      formData.append('fullName', fullName);
-      formData.append('dob', dob);
-      formData.append('gender', gender);
-      formData.append('city', city);
-      formData.append('phone', phone);
-      
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) throw new Error('Not authenticated');
+
+      let photoUrl = null;
+
+      // Upload photo if selected
       if (photo) {
-        formData.append('photo', {
-          uri: photo.uri,
-          type: 'image/jpeg',
-          name: 'profile.jpg',
+        const ext = photo.uri.substring(photo.uri.lastIndexOf('.') + 1);
+        const fileName = `${user.id}-${Date.now()}.${ext}`;
+
+        const photoResp = await fetch(photo.uri);
+        const photoBlob = await photoResp.blob();
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(fileName, photoBlob, {
+            contentType: `image/${ext}`
+          });
+
+        if (uploadError) {
+          console.warn('Photo upload failed, continuing without photo:', uploadError.message);
+        } else {
+          const { data: publicUrlData } = supabase.storage
+            .from('avatars')
+            .getPublicUrl(fileName);
+          photoUrl = publicUrlData.publicUrl;
+        }
+      }
+
+      // Update users table
+      const { error: userError } = await supabase
+        .from('users')
+        .update({
+          full_name: fullName,
+          date_of_birth: dob,
+          gender: gender,
+          city: city,
+          profile_complete: true
+        })
+        .eq('id', user.id);
+
+      if (userError) throw userError;
+
+      // Insert into user_profiles
+      const { error: profileError } = await supabase
+        .from('user_profiles')
+        .upsert({
+          user_id: user.id,
+          primary_photo_url: photoUrl
         });
-      }
 
-      const tempToken = await AsyncStorage.getItem('tempToken');
-      
-      const response = await API.post('/users/profile', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          'Authorization': `Bearer ${tempToken}`
-        },
-      });
+      if (profileError) throw profileError;
 
-      if (response.data.success) {
-        await AsyncStorage.setItem('userToken', response.data.token);
-        await AsyncStorage.setItem('userData', JSON.stringify(response.data.user));
-        await AsyncStorage.removeItem('tempToken');
-        
-        console.log('Profile completed, navigating to main app');
-        // navigation.replace('MainApp');
-      }
+      await AsyncStorage.setItem('onboarding_complete', 'true');
+      console.log('Profile completed, navigating to main app');
+      navigation.replace('Main');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to complete profile');
     } finally {
@@ -895,7 +924,7 @@ const BasicInfoScreen = ({ navigation, route }) => {
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-      <TouchableOpacity 
+      <TouchableOpacity
         style={[styles.button, { marginTop: 32 }]}
         onPress={handleSubmit}
         disabled={loading}
@@ -934,29 +963,29 @@ const AuthStack = () => {
         cardStyle: { backgroundColor: colors.background },
       }}
     >
-      <Stack.Screen 
-        name="Splash" 
-        component={SplashScreen} 
+      <Stack.Screen
+        name="Splash"
+        component={SplashScreen}
         options={{ headerShown: false }}
       />
-      <Stack.Screen 
-        name="Landing" 
-        component={LandingScreen} 
+      <Stack.Screen
+        name="Landing"
+        component={LandingScreen}
         options={{ headerShown: false }}
       />
-      <Stack.Screen 
-        name="Login" 
-        component={LoginScreen} 
+      <Stack.Screen
+        name="Login"
+        component={LoginScreen}
         options={{ title: '' }}
       />
-      <Stack.Screen 
-        name="Signup" 
-        component={SignupScreen} 
+      <Stack.Screen
+        name="Signup"
+        component={SignupScreen}
         options={{ title: '' }}
       />
-      <Stack.Screen 
-        name="BasicInfo" 
-        component={BasicInfoScreen} 
+      <Stack.Screen
+        name="BasicInfo"
+        component={BasicInfoScreen}
         options={{ title: 'Profile Info' }}
       />
     </Stack.Navigator>

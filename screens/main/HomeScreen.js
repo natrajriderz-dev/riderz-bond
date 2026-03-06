@@ -795,6 +795,7 @@ const DatingHome = ({ navigation }) => {
 };
 
 
+
 // ─── Matrimony Home Component ──────────────────────────────────────────────
 const MatrimonyHome = ({ navigation }) => {
   const [allProfiles, setAllProfiles] = useState([]);

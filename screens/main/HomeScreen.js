@@ -1111,7 +1111,12 @@ const MatrimonyHome = ({ navigation }) => {
   const ProfileCard = ({ item }) => {
     const alreadySent = sentInterests[item.id];
     return (
-      <View style={matrimonyStyles.card}>
+      <LinearGradient
+        colors={['#ffffff', '#f9f9f9']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={matrimonyStyles.card}
+      >
         <TouchableOpacity onPress={() => { setSelectedProfile(item); setShowDetailModal(true); }}>
           <Image
             source={{ uri: item.primary_photo_url || 'https://via.placeholder.com/300' }}
@@ -1156,6 +1161,7 @@ const MatrimonyHome = ({ navigation }) => {
             <TouchableOpacity
               style={matrimonyStyles.viewBtn}
               onPress={() => { setSelectedProfile(item); setShowDetailModal(true); }}
+              activeOpacity={0.7}
             >
               <Text style={matrimonyStyles.viewBtnText}>View Profile</Text>
             </TouchableOpacity>
@@ -1166,6 +1172,7 @@ const MatrimonyHome = ({ navigation }) => {
               ]}
               onPress={() => sendInterest(item.id)}
               disabled={alreadySent}
+              activeOpacity={0.8}
             >
               <Text style={matrimonyStyles.interestBtnText}>
                 {alreadySent ? '✓' : '💛'}
@@ -1173,28 +1180,32 @@ const MatrimonyHome = ({ navigation }) => {
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </LinearGradient>
     );
   };
 
   // ── Horizontal Card ───────────────────────────────────────────────────────
   const HorizontalCard = ({ item }) => (
-    <TouchableOpacity
+    <LinearGradient
+      colors={['#ffffff', '#f9f9f9']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
       style={matrimonyStyles.hCard}
-      onPress={() => { setSelectedProfile(item); setShowDetailModal(true); }}
     >
-      <Image
-        source={{ uri: item.primary_photo_url || 'https://via.placeholder.com/140' }}
-        style={matrimonyStyles.hCardPhoto}
-      />
-      {item.trust_level === 'green_verified' && (
-        <View style={matrimonyStyles.hCardBadge}><Text style={{ fontSize: 8 }}>✅</Text></View>
-      )}
-      <View style={matrimonyStyles.hCardInfo}>
-        <Text style={matrimonyStyles.hCardName} numberOfLines={1}>{item.display_name}</Text>
-        <Text style={matrimonyStyles.hCardMeta}>{item.age} • {item.city}</Text>
-      </View>
-    </TouchableOpacity>
+      <TouchableOpacity onPress={() => { setSelectedProfile(item); setShowDetailModal(true); }}>
+        <Image
+          source={{ uri: item.primary_photo_url || 'https://via.placeholder.com/140' }}
+          style={matrimonyStyles.hCardPhoto}
+        />
+        {item.trust_level === 'green_verified' && (
+          <View style={matrimonyStyles.hCardBadge}><Text style={{ fontSize: 8 }}>✅</Text></View>
+        )}
+        <View style={matrimonyStyles.hCardInfo}>
+          <Text style={matrimonyStyles.hCardName} numberOfLines={1}>{item.display_name}</Text>
+          <Text style={matrimonyStyles.hCardMeta}>{item.age} • {item.city}</Text>
+        </View>
+      </TouchableOpacity>
+    </LinearGradient>
   );
 
   if (loading) {
@@ -1380,6 +1391,12 @@ const matrimonyStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     marginBottom: 12,
+    // Enhanced shadow & depth
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
   },
   cardPhoto: {
     width: '100%',
@@ -1390,76 +1407,93 @@ const matrimonyStyles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     right: 8,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(217, 119, 6, 0.1)',
     borderRadius: 12,
-    padding: 4,
+    padding: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(217, 119, 6, 0.3)',
+    // Glassmorphism effect
+    backdropFilter: 'blur(10px)',
   },
   cardBody: {
-    padding: 10,
+    padding: 12,
   },
   cardNameRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    marginBottom: 3,
+    marginBottom: 4,
   },
   cardName: {
-    fontSize: 15,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '700',
     color: colors.text,
     flex: 1,
+    letterSpacing: 0.3,
   },
   cardAge: {
-    fontSize: 13,
+    fontSize: 14,
     color: colors.textSecondary,
+    fontWeight: '600',
   },
   cardReligion: {
-    fontSize: 11,
+    fontSize: 12,
     color: colors.primary,
     fontWeight: '600',
-    marginBottom: 3,
+    marginBottom: 4,
   },
   cardOccupation: {
-    fontSize: 11,
+    fontSize: 12,
     color: colors.textSecondary,
-    marginBottom: 2,
+    marginBottom: 3,
+    fontWeight: '500',
   },
   cardEducation: {
-    fontSize: 11,
+    fontSize: 12,
     color: colors.textSecondary,
-    marginBottom: 2,
+    marginBottom: 3,
+    fontWeight: '500',
   },
   cardCity: {
     fontSize: 11,
     color: colors.textMuted,
-    marginBottom: 8,
+    marginBottom: 10,
+    fontWeight: '500',
   },
   cardActions: {
     flexDirection: 'row',
-    gap: 6,
+    gap: 8,
   },
   viewBtn: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.primary,
     alignItems: 'center',
+    backgroundColor: 'transparent',
   },
   viewBtnText: {
     color: colors.primary,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   interestBtn: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     borderRadius: 10,
     backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
+    // Enhanced shadow
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   interestBtnText: {
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: 'bold',
   },
   // Horizontal card
   hCard: {
@@ -1470,6 +1504,12 @@ const matrimonyStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     position: 'relative',
+    // Enhanced shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
   },
   hCardPhoto: {
     width: 130,
@@ -1480,22 +1520,26 @@ const matrimonyStyles = StyleSheet.create({
     position: 'absolute',
     top: 6,
     right: 6,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(217, 119, 6, 0.1)',
     borderRadius: 10,
-    padding: 4,
+    padding: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(217, 119, 6, 0.3)',
   },
   hCardInfo: {
-    padding: 8,
+    padding: 10,
   },
   hCardName: {
-    fontSize: 13,
-    fontWeight: 'bold',
+    fontSize: 14,
+    fontWeight: '700',
     color: colors.text,
+    letterSpacing: 0.2,
   },
   hCardMeta: {
     fontSize: 11,
     color: colors.textSecondary,
-    marginTop: 2,
+    marginTop: 3,
+    fontWeight: '500',
   },
   // Detail Modal
   modalOverlay: {

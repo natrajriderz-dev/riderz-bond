@@ -41,10 +41,10 @@ const SplashScreen = ({ navigation }) => {
           justifyContent: 'center',
           alignItems: 'center'
         }}>
-          <Text style={{ fontSize: 48, color: Colors.text, fontWeight: 'bold' }}>BOND</Text>
+          <Text style={{ fontSize: 48, color: Colors.text, fontWeight: 'bold' }}>SUYAVARAA</Text>
         </View>
       </View>
-      <Text style={AuthStyles.title}>BOND</Text>
+      <Text style={AuthStyles.title}>Suyavaraa</Text>
       <Text style={AuthStyles.subtitle}>Find your perfect match</Text>
       {isLoading && <ActivityIndicator size="large" color={Colors.primary} />}
     </View>

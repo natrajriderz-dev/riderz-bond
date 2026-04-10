@@ -10,6 +10,7 @@ const {
   ActivityIndicator,
   Image,
   Dimensions,
+  Alert
 } = require('react-native');
 const { useState, useEffect } = React;
 const { Ionicons } = require('@expo/vector-icons');
@@ -21,57 +22,120 @@ const { width } = Dimensions.get('window');
 const SuyamvaramScreen = ({ navigation }) => {
   const [challenges, setChallenges] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [applying, setApplying] = useState(null);
 
   useEffect(() => {
     loadChallenges();
-  }, []);
+    
+    // Refresh listener when returning from CreateSuyamvaram
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadChallenges();
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   const loadChallenges = async () => {
     setLoading(true);
-    // Mocking challenges as per the Product Guide examples
-    const mockChallenges = [
-      {
-        id: '1',
-        title: 'The Melodic Match',
-        description: 'Sing an original 2-minute song about your life philosophy.',
-        type: 'Skill Demonstration',
-        creator: 'Ananya S.',
-        creator_image: 'https://i.pravatar.cc/150?u=ananya',
-        participants: 12,
-        max_participants: 50,
-        deadline: '2 days left',
-        reward: 'Direct connection + Verified Badge'
-      },
-      {
-        id: '2',
-        title: 'Strength of Character',
-        description: 'Complete 100 push-ups in one set and document it.',
-        type: 'Fitness Achievement',
-        creator: 'Vikram R.',
-        creator_image: 'https://i.pravatar.cc/150?u=vikram',
-        participants: 8,
-        max_participants: 30,
-        deadline: '5 days left',
-        reward: 'Direct connection'
-      },
-      {
-        id: '3',
-        title: 'The Poet\'s Heart',
-        description: 'Write a poem about what trust means in partnership.',
-        type: 'Creative Expression',
-        creator: 'Priya M.',
-        creator_image: 'https://i.pravatar.cc/150?u=priya',
-        participants: 24,
-        max_participants: 50,
-        deadline: '1 day left',
-        reward: 'Exclusive Chat Unlock'
-      }
-    ];
+    try {
+      const { data, error } = await supabase
+        .from('suyamvaram_challenges')
+        .select(`
+          *,
+          auth_users:creator_id (
+            email,
+            raw_user_meta_data
+          )
+        `)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
 
-    setTimeout(() => {
-      setChallenges(mockChallenges);
+      if (error) {
+        throw error;
+      }
+
+      if (data) {
+        const formattedData = data.map(challenge => {
+          const creatorData = challenge.auth_users?.raw_user_meta_data || {};
+          const creatorName = creatorData.full_name || challenge.auth_users?.email?.split('@')[0] || 'Anonymous';
+          const profileImage = creatorData.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(creatorName)}&background=random`;
+
+          // Format deadline
+          const deadlineDate = new Date(challenge.deadline);
+          const today = new Date();
+          const diffTime = Math.abs(deadlineDate - today);
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          const deadlineStr = deadlineDate < today ? 'Expired' : `${diffDays} days left`;
+          
+          return {
+            id: challenge.id,
+            title: challenge.title,
+            description: challenge.description,
+            type: challenge.challenge_type,
+            creator: creatorName,
+            creator_image: profileImage,
+            creator_id: challenge.creator_id,
+            participants: 0, // TODO: Fetch participant count
+            max_participants: challenge.max_participants,
+            deadline: deadlineStr,
+            reward: challenge.reward,
+            isExpired: deadlineDate < today
+          };
+        });
+
+        // Filter out expired challenges from display
+        setChallenges(formattedData.filter(c => !c.isExpired));
+      }
+    } catch (error) {
+      console.error('Error fetching challenges:', error);
+      // Fallback or error state
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
+  };
+
+  const handleApply = async (challenge) => {
+    try {
+      setApplying(challenge.id);
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        Alert.alert('Error', 'You must be logged in to apply');
+        return;
+      }
+
+      // Check if trying to apply to own challenge
+      if (user.id === challenge.creator_id) {
+        Alert.alert('Notice', 'This is your own challenge!');
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('suyamvaram_applications')
+        .insert({
+          challenge_id: challenge.id,
+          applicant_id: user.id,
+          status: 'pending'
+        });
+
+      if (error) {
+        if (error.code === '23505') { // Unique constraint violation Code
+           Alert.alert('Notice', 'You have already applied to this challenge!');
+           return;
+        }
+        throw error;
+      }
+
+      Alert.alert('Success', 'Application sent successfully! The creator will review your profile.');
+      
+      // Update local state slightly to show participant count increase if needed, or re-fetch
+      loadChallenges();
+      
+    } catch (error) {
+      console.error('Apply error:', error);
+      Alert.alert('Error', 'Failed to apply. Please try again later.');
+    } finally {
+      setApplying(null);
+    }
   };
 
   const ChallengeCard = ({ item }) => (
@@ -99,8 +163,16 @@ const SuyamvaramScreen = ({ navigation }) => {
             <Ionicons name="people" size={16} color="#D97706" />
             <Text style={styles.footerStatText}>{item.participants}/{item.max_participants}</Text>
           </View>
-          <TouchableOpacity style={styles.applyBtn}>
-            <Text style={styles.applyBtnText}>Apply Now</Text>
+          <TouchableOpacity 
+            style={styles.applyBtn}
+            onPress={() => handleApply(item)}
+            disabled={applying === item.id}
+          >
+            {applying === item.id ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <Text style={styles.applyBtnText}>Apply Now</Text>
+            )}
           </TouchableOpacity>
         </View>
       </LinearGradient>
@@ -123,8 +195,11 @@ const SuyamvaramScreen = ({ navigation }) => {
           style={styles.hero}
         >
           <View style={styles.appHeader}>
-            <Text style={styles.logoText}>BOND</Text>
-            <TouchableOpacity style={styles.createBtn}>
+            <Text style={styles.logoText}>Suyavaraa</Text>
+            <TouchableOpacity 
+              style={styles.createBtn}
+              onPress={() => navigation.navigate('CreateSuyamvaram')}
+            >
               <Ionicons name="add" size={24} color="#D97706" />
               <Text style={styles.createBtnText}>New</Text>
             </TouchableOpacity>
@@ -135,11 +210,11 @@ const SuyamvaramScreen = ({ navigation }) => {
           
           <View style={styles.heroStats}>
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatVal}>12</Text>
+              <Text style={styles.heroStatVal}>{challenges.length}</Text>
               <Text style={styles.heroStatLabel}>Active Challenges</Text>
             </View>
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatVal}>450+</Text>
+              <Text style={styles.heroStatVal}>--</Text>
               <Text style={styles.heroStatLabel}>Applicants</Text>
             </View>
           </View>
@@ -147,16 +222,23 @@ const SuyamvaramScreen = ({ navigation }) => {
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>🔥 Trending Matches</Text>
-          <TouchableOpacity><Text style={styles.seeAll}>See All</Text></TouchableOpacity>
+          {challenges.length > 0 && <TouchableOpacity><Text style={styles.seeAll}>See All</Text></TouchableOpacity>}
         </View>
 
-        <FlatList
-          data={challenges}
-          renderItem={({ item }) => <ChallengeCard item={item} />}
-          keyExtractor={item => item.id}
-          scrollEnabled={false}
-          contentContainerStyle={{ paddingHorizontal: 20 }}
-        />
+        {challenges.length > 0 ? (
+          <FlatList
+            data={challenges}
+            renderItem={({ item }) => <ChallengeCard item={item} />}
+            keyExtractor={item => item.id}
+            scrollEnabled={false}
+            contentContainerStyle={{ paddingHorizontal: 20 }}
+          />
+        ) : (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>No active challenges found.</Text>
+            <Text style={styles.emptySubText}>Be the first to create one!</Text>
+          </View>
+        )}
 
         <View style={styles.infoBanner}>
           <Text style={styles.infoTitle}>What is Suyamvaram?</Text>
@@ -227,6 +309,9 @@ const styles = StyleSheet.create({
   infoBanner: { margin: 24, padding: 24, backgroundColor: '#F9FAFB', borderRadius: 20, borderLeftWidth: 4, borderLeftColor: '#D97706' },
   infoTitle: { fontSize: 18, fontWeight: 'bold', color: '#1C1C1E', marginBottom: 8 },
   infoText: { fontSize: 14, color: '#6B7280', lineHeight: 22 },
+  emptyState: { padding: 40, alignItems: 'center' },
+  emptyText: { fontSize: 16, color: '#1C1C1E', fontWeight: 'bold' },
+  emptySubText: { fontSize: 14, color: '#6B7280', marginTop: 4 },
 });
 
 module.exports = SuyamvaramScreen;

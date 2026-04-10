@@ -74,13 +74,13 @@ const PremiumScreen = ({ navigation }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="close" size={28} color={Colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>BOND Premium</Text>
+        <Text style={styles.headerTitle}>Suyavaraa Premium</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.heroSection}>
           <Text style={styles.heroTitle}>Level Up Your Love Life</Text>
-          <Text style={styles.heroSub}>Unlock the full architecture of BOND—Dating and Matrimony.</Text>
+          <Text style={styles.heroSub}>Unlock the full architecture of Suyavaraa — Dating and Matrimony.</Text>
         </View>
 
         {plans.map(plan => <PlanCard key={plan.id} plan={plan} />)}

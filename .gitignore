@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
 # dependencies
@@ -31,22 +30,31 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
-.env*.local
-
-# typescript
-*.tsbuildinfo
-
-# generated native folders
-/ios
-/android
-=======
-node_modules/
-.expo/
-dist/
+# Environment files
 .env
 .env.local
+.env*.local
+
+# Typescript
+*.tsbuildinfo
+
+# Generated native folders
+/ios
+/android
+
+# Logs
 *.log
-.DS_Store
->>>>>>> ecf766d0e8c43ffde3e2e2828897e39afd1f66f6
+
+# Aider and AI tools
 .aider*
+
+# Testing and Reports
+playwright-report/
+test-results/
+supabase.deb
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]

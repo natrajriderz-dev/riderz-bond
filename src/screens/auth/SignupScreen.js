@@ -16,34 +16,33 @@ const AuthStyles = require('./AuthStyles');
 const Colors = require('../../theme/Colors');
 
 const SignupScreen = ({ navigation }) => {
-  const handleSocialLogin = async (provider) => {
-    try {
-      setLoading(true);
-      setError('');
-      const { data, error: socialError } = await supabase.auth.signInWithOAuth({
-        provider: provider,
-        options: {
-          redirectTo: 'bondapp://login-callback',
-        },
-      });
-
-      if (socialError) throw socialError;
-    } catch (err) {
-      setError(err.message || `Failed to signup with ${provider}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [countryCode, setCountryCode] = useState('+91');
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const [showOtp, setShowOtp] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const handleSendOtp = async () => {
-    if (!phoneNumber || phoneNumber.length < 10) {
-      setError('Please enter a valid phone number');
+  const handleSignup = async () => {
+    // Validation
+    if (!email || !password || !confirmPassword) {
+      setError('Please fill in all fields');
+      return;
+    }
+
+    if (!email.includes('@')) {
+      setError('Please enter a valid email');
+      return;
+    }
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
       return;
     }
 
@@ -51,47 +50,32 @@ const SignupScreen = ({ navigation }) => {
     setError('');
 
     try {
-      const { error: signUpError } = await supabase.auth.signInWithOtp({
-        phone: `${countryCode}${phoneNumber}`,
+      // Sign up with email and password
+      const { data: { user }, error: signUpError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: password,
+        options: {
+          emailRedirectTo: 'suyavaraa://login-callback',
+        }
       });
 
       if (signUpError) throw signUpError;
 
-      setShowOtp(true);
-      Alert.alert('OTP Sent', 'Please check your phone for the verification code');
-    } catch (err) {
-      setError(err.message || 'Failed to send OTP');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async () => {
-    const otpString = otp.join('');
-    if (otpString.length !== 6) {
-      setError('Please enter complete OTP');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-
-    try {
-      const { data: { session }, error: verifyError } = await supabase.auth.verifyOtp({
-        phone: `${countryCode}${phoneNumber}`,
-        token: otpString,
-        type: 'sms'
-      });
-
-      if (verifyError) throw verifyError;
-
-      if (session) {
-        navigation.navigate('BasicInfo', {
-          phone: `${countryCode}${phoneNumber}`
-        });
+      if (user) {
+        Alert.alert(
+          'Account Created',
+          'A confirmation email has been sent. Please verify your email before logging in.',
+          [
+            {
+              text: 'OK',
+              onPress: () => navigation.navigate('Login')
+            }
+          ]
+        );
       }
     } catch (err) {
-      setError(err.message || 'Invalid OTP');
+      console.error('Signup Error:', err);
+      setError(err.message || 'Failed to create account');
     } finally {
       setLoading(false);
     }
@@ -100,94 +84,74 @@ const SignupScreen = ({ navigation }) => {
   return (
     <ScrollView contentContainerStyle={AuthStyles.scrollContainer}>
       <Text style={AuthStyles.title}>Create Account</Text>
-      <Text style={AuthStyles.subtitle}>Join BOND to find meaningful connections</Text>
+      <Text style={AuthStyles.subtitle}>Join Suyavaraa to find meaningful connections</Text>
 
-      {!showOtp ? (
-        <>
-          <Text style={AuthStyles.inputLabel}>Phone Number</Text>
-          <View style={AuthStyles.phoneContainer}>
-            <TextInput
-              style={AuthStyles.countryCode}
-              value={countryCode}
-              onChangeText={setCountryCode}
-              placeholder="+91"
-              placeholderTextColor={Colors.textSecondary}
-            />
-            <TextInput
-              style={[AuthStyles.input, AuthStyles.phoneInput]}
-              value={phoneNumber}
-              onChangeText={setPhoneNumber}
-              placeholder="Phone number"
-              placeholderTextColor={Colors.textSecondary}
-              keyboardType="phone-pad"
-              maxLength={10}
-            />
-          </View>
+      <Text style={AuthStyles.inputLabel}>Email</Text>
+      <TextInput
+        style={AuthStyles.input}
+        value={email}
+        onChangeText={setEmail}
+        placeholder="Enter your email"
+        placeholderTextColor={Colors.textSecondary}
+        keyboardType="email-address"
+        autoCapitalize="none"
+      />
 
-          <TouchableOpacity style={AuthStyles.button} onPress={handleSendOtp} disabled={loading}>
-            <Text style={AuthStyles.buttonText}>{loading ? 'Sending...' : 'Send OTP'}</Text>
-          </TouchableOpacity>
-        </>
-      ) : (
-        <>
-          <Text style={AuthStyles.inputLabel}>Enter Verification Code</Text>
-          <View style={AuthStyles.otpContainer}>
-            {otp.map((digit, index) => (
-              <TextInput
-                key={index}
-                style={AuthStyles.otpInput}
-                value={digit}
-                onChangeText={(text) => {
-                  const newOtp = [...otp];
-                  newOtp[index] = text;
-                  setOtp(newOtp);
-                }}
-                keyboardType="number-pad"
-                maxLength={1}
-                selectTextOnFocus
-              />
-            ))}
-          </View>
+      <Text style={AuthStyles.inputLabel}>Password</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+        <TextInput
+          style={[AuthStyles.input, { flex: 1, marginRight: 10 }]}
+          value={password}
+          onChangeText={setPassword}
+          placeholder="Create a password (min 6 characters)"
+          placeholderTextColor={Colors.textSecondary}
+          secureTextEntry={!showPassword}
+        />
+        <TouchableOpacity
+          onPress={() => setShowPassword(!showPassword)}
+          style={{
+            width: 50,
+            height: 50,
+            justifyContent: 'center',
+            alignItems: 'center',
+            backgroundColor: Colors.surface,
+            borderRadius: 8,
+          }}
+        >
+          <Ionicons name={showPassword ? 'eye' : 'eye-off'} size={20} color={Colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
 
-          <TouchableOpacity style={AuthStyles.button} onPress={handleVerifyOtp} disabled={loading}>
-            <Text style={AuthStyles.buttonText}>{loading ? 'Verifying...' : 'Verify & Continue'}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={() => setShowOtp(false)}>
-            <Text style={AuthStyles.linkText}>Change phone number</Text>
-          </TouchableOpacity>
-        </>
-      )}
+      <Text style={AuthStyles.inputLabel}>Confirm Password</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+        <TextInput
+          style={[AuthStyles.input, { flex: 1, marginRight: 10 }]}
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          placeholder="Confirm your password"
+          placeholderTextColor={Colors.textSecondary}
+          secureTextEntry={!showConfirmPassword}
+        />
+        <TouchableOpacity
+          onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+          style={{
+            width: 50,
+            height: 50,
+            justifyContent: 'center',
+            alignItems: 'center',
+            backgroundColor: Colors.surface,
+            borderRadius: 8,
+          }}
+        >
+          <Ionicons name={showConfirmPassword ? 'eye' : 'eye-off'} size={20} color={Colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
 
       {error ? <Text style={AuthStyles.errorText}>{error}</Text> : null}
 
-      {!showOtp && (
-        <>
-          <View style={AuthStyles.dividerContainer}>
-            <View style={AuthStyles.dividerLine} />
-            <Text style={AuthStyles.dividerText}>or continue with</Text>
-            <View style={AuthStyles.dividerLine} />
-          </View>
-
-          <View style={{ gap: 4 }}>
-            <TouchableOpacity
-              style={[AuthStyles.socialButton, AuthStyles.socialButtonGoogle]}
-              onPress={() => handleSocialLogin('google')}
-            >
-              <Ionicons name="logo-google" size={20} color="#EA4335" style={AuthStyles.socialIcon} />
-              <Text style={[AuthStyles.socialButtonText, { color: '#374151' }]}>Continue with Google</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[AuthStyles.socialButton, AuthStyles.socialButtonApple]}
-              onPress={() => handleSocialLogin('apple')}
-            >
-              <Ionicons name="logo-apple" size={22} color="#ffffff" style={AuthStyles.socialIcon} />
-              <Text style={[AuthStyles.socialButtonText, { color: '#ffffff' }]}>Continue with Apple</Text>
-            </TouchableOpacity>
-          </View>
-        </>
-      )}
+      <TouchableOpacity style={AuthStyles.button} onPress={handleSignup} disabled={loading}>
+        <Text style={AuthStyles.buttonText}>{loading ? 'Creating Account...' : 'Sign Up'}</Text>
+      </TouchableOpacity>
 
       <TouchableOpacity onPress={() => navigation.navigate('Login')}>
         <Text style={[AuthStyles.linkText, { textAlign: 'center', marginTop: 24 }]}>Already have an account? Login</Text>

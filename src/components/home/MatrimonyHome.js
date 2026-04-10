@@ -20,7 +20,9 @@ const Colors = require('../../theme/Colors');
 const MatrimonyProfileCard = require('./MatrimonyProfileCard');
 const MatrimonyDetailModal = require('../modals/MatrimonyDetailModal');
 const SuccessModal = require('../modals/SuccessModal');
+const fishTrapService = require('../../services/fishTrapService');
 const { Ionicons } = require('@expo/vector-icons');
+const notificationService = require('../../services/notificationService');
 
 const MatrimonyHome = ({ navigation }) => {
   const isFocused = useIsFocused();
@@ -32,6 +34,8 @@ const MatrimonyHome = ({ navigation }) => {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [sentInterests, setSentInterests] = useState({});
   const [filters, setFilters] = useState({ religion: 'All', education: 'All', ageRange: [18, 50] });
+  const [isInQuarantine, setIsInQuarantine] = useState(false);
+  const [showVerificationPopup, setShowVerificationPopup] = useState(false);
 
   useEffect(() => {
     if (isFocused) {
@@ -56,42 +60,37 @@ const MatrimonyHome = ({ navigation }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      let query = supabase
-        .from('users')
-        .select(`
-          id, full_name, city, date_of_birth, trust_level,
-          user_profiles(
-            primary_photo_url, marital_status, religion, mother_tongue,
-            height_cm, family_type, education, occupation,
-            annual_income, bio, interests
-          )
-        `)
-        .eq('is_active', true)
-        .eq('is_banned', false)
-        .neq('id', user.id);
+      // Check quarantine status
+      const inQuarantine = await fishTrapService.isUserInQuarantine(user.id);
+      setIsInQuarantine(inQuarantine);
 
-      // Simple implementation: Fetch 100 profiles and filter client-side for complex props
-      // In production, use more sophisticated RPC or search indexing
-      const { data: users, error } = await query.limit(100);
+      // Get profiles via Fish Trap service
+      const fishTrapProfiles = await fishTrapService.getProfilesForUser(user.id, {
+        limit: 50,
+        offset: 0
+      });
 
-      if (error) throw error;
-
-      if (users && users.length > 0) {
-        const mapped = users.map(u => {
-          const p = u.user_profiles?.[0] || {};
+      if (fishTrapProfiles && fishTrapProfiles.length > 0) {
+        // Map to expected format
+        const mapped = fishTrapProfiles.map(profile => {
+          const u = profile.users || {};
+          const p = profile.user_profiles?.[0] || {};
+          
           return {
-            id: u.id,
-            display_name: u.full_name,
-            age: u.date_of_birth ? Math.floor((Date.now() - new Date(u.date_of_birth).getTime()) / (365.25 * 24 * 3600 * 1000)) : null,
+            id: profile.id, // This will be the decoy_id if is_decoy is true
+            display_name: u.full_name || u.name,
+            age: u.age || (u.date_of_birth ? Math.floor((Date.now() - new Date(u.date_of_birth).getTime()) / (365.25 * 24 * 3600 * 1000)) : null),
             city: u.city,
-            trust_level: u.trust_level,
-            primary_photo_url: p.primary_photo_url || null,
+            trust_level: u.trust_score >= 80 ? 'green_verified' : 'unverified',
+            primary_photo_url: profile.primary_photo_url,
             religion: p.religion || '',
             education: p.education || '',
             interests: p.interests || [],
             bio: p.bio || '',
             occupation: p.occupation || '',
-            annual_income: p.annual_income || ''
+            annual_income: p.annual_income || '',
+            is_decoy: profile.is_decoy || false,
+            can_send_request: profile.can_send_request !== false
           };
         });
 
@@ -105,11 +104,48 @@ const MatrimonyHome = ({ navigation }) => {
 
         setAllProfiles(filtered);
         setRecentProfiles(filtered.slice(0, 4));
+      } else {
+        setAllProfiles([]);
+        setRecentProfiles([]);
       }
     } catch (err) {
       console.log('Matrimony load error:', err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSendInterest = async (profile) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Check quarantine logic
+      if (isInQuarantine && !profile.is_decoy) {
+        setSelectedProfile(profile);
+        setShowDetailModal(false);
+        setShowVerificationPopup(true);
+        return;
+      }
+
+      // If decoy, start decoy chat
+      if (profile.is_decoy) {
+        const result = await fishTrapService.startDecoyChat(user.id, profile.id);
+        if (result.success) {
+          setSentInterests(prev => ({ ...prev, [profile.id]: true }));
+          setShowDetailModal(false);
+          setShowSuccessModal(true);
+        } else {
+          Alert.alert('Error', result.message || 'Failed to start conversation.');
+        }
+        return;
+      }
+
+      // If real profile and verified
+      await sendInterest(profile.id);
+
+    } catch (error) {
+      console.error('Interest error:', error);
     }
   };
 
@@ -128,6 +164,12 @@ const MatrimonyHome = ({ navigation }) => {
       setSentInterests(prev => ({ ...prev, [profileId]: true }));
       setShowDetailModal(false);
       setShowSuccessModal(true);
+
+      // Send local notification for interest sent
+      notificationService.sendLocalNotification(
+        'Interest Sent! 💌',
+        `Your interest has been sent to ${selectedProfile?.display_name || 'the user'}`
+      );
     } catch (err) {
       Alert.alert('Error', 'Failed to send interest.');
     }
@@ -162,9 +204,33 @@ const MatrimonyHome = ({ navigation }) => {
         visible={showDetailModal}
         profile={selectedProfile}
         onClose={() => setShowDetailModal(false)}
-        onInterest={() => sendInterest(selectedProfile?.id)}
+        onInterest={() => handleSendInterest(selectedProfile)}
         alreadySent={selectedProfile ? sentInterests[selectedProfile.id] : false}
       />
+      
+      {/* Verification Required Popup */}
+      <Modal visible={showVerificationPopup} transparent animationType="fade">
+        <View style={styles.vOverlay}>
+          <View style={styles.vModal}>
+            <Text style={styles.vTitle}>Verification Required</Text>
+            <Text style={styles.vText}>
+              To connect with verified users like {selectedProfile?.display_name}, you need to complete verification first.
+            </Text>
+            <TouchableOpacity 
+              style={styles.vBtn}
+              onPress={() => { setShowVerificationPopup(false); navigation.navigate('VideoVerification'); }}
+            >
+              <Text style={styles.vBtnText}>Verify Now</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.vBtn, { backgroundColor: 'transparent' }]}
+              onPress={() => setShowVerificationPopup(false)}
+            >
+              <Text style={{ color: Colors.textSecondary }}>Maybe Later</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
       <SuccessModal
         visible={showSuccessModal}
         onClose={() => setShowSuccessModal(false)}
@@ -231,7 +297,7 @@ const MatrimonyHome = ({ navigation }) => {
               <MatrimonyProfileCard
                 item={item}
                 onSelect={() => { setSelectedProfile(item); setShowDetailModal(true); }}
-                onInterest={() => sendInterest(item.id)}
+                onInterest={() => handleSendInterest(item)}
                 alreadySent={sentInterests[item.id]}
               />
             )}
@@ -306,6 +372,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 14,
   },
+  vOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 30 },
+  vModal: { backgroundColor: '#fff', borderRadius: 20, padding: 24, width: '100%', alignItems: 'center' },
+  vTitle: { fontSize: 22, fontWeight: 'bold', color: Colors.text, marginBottom: 12 },
+  vText: { fontSize: 16, color: Colors.textSecondary, textAlign: 'center', marginBottom: 24, lineHeight: 22 },
+  vBtn: { backgroundColor: Colors.primary, width: '100%', paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginBottom: 10 },
+  vBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
 });
 
 module.exports = MatrimonyHome;

@@ -1,14 +1,14 @@
-import React from 'react';
-import {
+const React = require('react');
+const {
   View,
   Text,
   Image,
   TouchableOpacity,
   TouchableWithoutFeedback,
   Dimensions,
-} from 'react-native';
-import { matrimonyStyles } from '../styles/matrimonyStyles';
-import { useMode } from '../contexts/ModeContext';
+} = require('react-native');
+const { matrimonyStyles } = require('../styles/matrimonyStyles');
+const { useMode } = require('../../../context/ModeContext');
 
 // Icons (using text as placeholders - in a real app, use actual icon components)
 const Icon = ({ name }) => {
@@ -153,4 +153,4 @@ const MatrimonyCard = ({ profile, onViewProfile, onSendInterest }) => {
   );
 };
 
-export default MatrimonyCard;
+module.exports = MatrimonyCard;

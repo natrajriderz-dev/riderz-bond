@@ -7,6 +7,7 @@ const { View, ActivityIndicator } = require('react-native');
 const { supabase } = require('./supabase');
 const { ModeProvider } = require('./context/ModeContext');
 const ErrorBoundary = require('./src/components/shared/ErrorBoundary');
+const notificationService = require('./src/services/notificationService');
 
 // Navigation Stacks
 const AuthStack = require('./screens/auth/AuthStack');
@@ -29,8 +30,20 @@ const App = () => {
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session) {
-        console.log('Session found, navigating to Main');
-        setInitialRoute('Main');
+        console.log('Session found, checking profile status');
+        const { data: profile } = await supabase
+          .from('users')
+          .select('profile_complete')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profile?.profile_complete) {
+          setInitialRoute('Main');
+          // Register for push notifications when user is authenticated
+          notificationService.registerForPushNotifications(session.user.id);
+        } else {
+          setInitialRoute('Onboarding');
+        }
       } else {
         console.log('No session found, navigating to Auth');
         setInitialRoute('Auth');

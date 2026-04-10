@@ -7,6 +7,22 @@ const AuthStyles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  screenWrapper: {
+    flex: 1,
+    padding: 24,
+  },
+  card: {
+    backgroundColor: Colors.surface,
+    borderRadius: 24,
+    padding: 24,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 10,
+    marginBottom: 20,
+  },
   scrollContainer: {
     flexGrow: 1,
     padding: 24,

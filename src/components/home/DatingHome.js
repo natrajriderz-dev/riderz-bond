@@ -8,6 +8,7 @@ const {
   Image,
   ActivityIndicator,
   Modal,
+  Alert,
 } = require('react-native');
 const { useState, useEffect, useCallback } = React;
 const { useIsFocused } = require('@react-navigation/native');
@@ -15,6 +16,8 @@ const AsyncStorage = require('@react-native-async-storage/async-storage').defaul
 const { supabase } = require('../../../supabase');
 const Colors = require('../../theme/Colors');
 const SwipeableCard = require('./SwipeableCard');
+const fishTrapService = require('../../services/fishTrapService');
+const { Ionicons } = require('@expo/vector-icons');
 
 const DatingHome = ({ navigation }) => {
   const isFocused = useIsFocused();
@@ -25,6 +28,9 @@ const DatingHome = ({ navigation }) => {
   const [matchedProfile, setMatchedProfile] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [filters, setFilters] = useState({ distance: 50, ageRange: [18, 35], gender: 'Everyone' });
+  const [showVerificationPopup, setShowVerificationPopup] = useState(false);
+  const [selectedRealProfile, setSelectedRealProfile] = useState(null);
+  const [isInQuarantine, setIsInQuarantine] = useState(false);
 
   useEffect(() => {
     if (isFocused) {
@@ -60,49 +66,55 @@ const DatingHome = ({ navigation }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      let query = supabase
-        .from('users')
-        .select(`
-          id, full_name, city, date_of_birth, gender,
-          user_profiles(primary_photo_url),
-          user_tribes(tribes(name))
-        `)
-        .eq('is_verified', true)
-        .eq('is_active', true)
-        .neq('id', user.id);
+      // Check if user is in quarantine
+      const inQuarantine = await fishTrapService.isUserInQuarantine(user.id);
+      setIsInQuarantine(inQuarantine);
 
-      // Apply Filter: Gender
-      if (currentFilters.gender !== 'Everyone') {
-        const genderValue = currentFilters.gender === 'Men' ? 'male' : 'female';
-        query = query.eq('gender', genderValue);
-      }
+      // Get profiles using Fish Trap service (mixed real + decoy for unverified, real only for verified)
+      const fishTrapProfiles = await fishTrapService.getProfilesForUser(user.id, {
+        limit: 20,
+        offset: 0
+      });
 
-      // Filter: Verified Only (if in filters)
-      if (currentFilters.showVerifiedOnly) {
-        query = query.eq('trust_level', 'green_verified');
-      }
+      if (fishTrapProfiles && fishTrapProfiles.length > 0) {
+        // Apply additional filters if needed
+        const filtered = fishTrapProfiles.filter(profile => {
+          // Apply age filter if available
+          if (profile.users?.date_of_birth && currentFilters.ageRange) {
+            const age = Math.floor((Date.now() - new Date(profile.users.date_of_birth).getTime()) / (365.25 * 24 * 3600 * 1000));
+            if (age < currentFilters.ageRange[0] || age > currentFilters.ageRange[1]) {
+              return false;
+            }
+          }
 
-      const { data: users, error } = await query.limit(20);
+          // Apply gender filter
+          if (currentFilters.gender !== 'Everyone' && profile.users?.gender) {
+            const genderValue = currentFilters.gender === 'Men' ? 'male' : 'female';
+            if (profile.users.gender !== genderValue) {
+              return false;
+            }
+          }
 
-      if (error) throw error;
-
-      if (users && users.length > 0) {
-        const mapped = users.map(u => ({
-          id: u.id,
-          display_name: u.full_name,
-          age: u.date_of_birth ? Math.floor((Date.now() - new Date(u.date_of_birth).getTime()) / (365.25 * 24 * 3600 * 1000)) : null,
-          city: u.city,
-          profile_picture_url: u.user_profiles?.[0]?.primary_photo_url || null,
-          tribes: u.user_tribes?.map(ut => ut.tribes) || []
-        }));
-        
-        // Manual Filter: Age range
-        const filtered = mapped.filter(p => {
-          if (!p.age) return true;
-          return p.age >= currentFilters.ageRange[0] && p.age <= currentFilters.ageRange[1];
+          return true;
         });
 
-        setProfiles(filtered);
+        // Map to expected format
+        const mapped = filtered.map(profile => ({
+          id: profile.id,
+          display_name: profile.users?.full_name || profile.users?.name,
+          age: profile.users?.date_of_birth ?
+            Math.floor((Date.now() - new Date(profile.users.date_of_birth).getTime()) / (365.25 * 24 * 3600 * 1000)) :
+            profile.users?.age,
+          city: profile.users?.city,
+          profile_picture_url: profile.primary_photo_url,
+          tribes: [], // Could be populated from user_tribes if needed
+          is_decoy: profile.is_decoy || false,
+          can_send_request: profile.can_send_request || true,
+          trust_score: profile.users?.trust_score || 50,
+          is_verified: profile.users?.is_verified || false
+        }));
+
+        setProfiles(mapped);
       } else {
         setProfiles([]);
       }
@@ -110,8 +122,8 @@ const DatingHome = ({ navigation }) => {
       console.log('Load discover error:', error.message);
       // Fallback to mock for demo stability
       const mockProfiles = [
-        { id: '1', display_name: 'Priya', age: 26, city: 'Mumbai', profile_picture_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=500&q=60', tribes: [{ name: 'Foodie' }] },
-        { id: '2', display_name: 'Ananya', age: 24, city: 'Bangalore', profile_picture_url: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=500&q=60', tribes: [{ name: 'Adventurer' }] }
+        { id: '1', display_name: 'Priya', age: 26, city: 'Mumbai', profile_picture_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=500&q=60', tribes: [{ name: 'Foodie' }], is_decoy: false, can_send_request: false },
+        { id: '2', display_name: 'Ananya', age: 24, city: 'Bangalore', profile_picture_url: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=500&q=60', tribes: [{ name: 'Adventurer' }], is_decoy: true, can_send_request: true }
       ];
       setProfiles(mockProfiles);
     } finally {
@@ -124,30 +136,58 @@ const DatingHome = ({ navigation }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      await supabase.from('user_actions').insert({
-        actor_user_id: user.id,
-        target_user_id: profile.id,
-        action_type: action
-      });
-
-      if (action === 'like') {
-        const { data: mutual } = await supabase
-          .from('user_actions')
-          .select('id')
-          .eq('actor_user_id', profile.id)
-          .eq('target_user_id', user.id)
-          .eq('action_type', 'like')
-          .single();
-
-        if (mutual) {
-          await supabase.from('matches').insert({ user1_id: user.id, user2_id: profile.id });
-          setMatchedProfile(profile);
-          setShowMatch(true);
-        }
+      // If user is in quarantine and trying to like a real profile, show verification popup
+      if (isInQuarantine && !profile.is_decoy && action === 'like') {
+        setSelectedRealProfile(profile);
+        setShowVerificationPopup(true);
+        return; // Don't process the swipe yet
       }
+
+      // For decoy profiles or verified users, process normally
+      await processSwipeAction(action, profile, user.id);
       nextCard();
+
     } catch (e) {
+      console.error('Swipe error:', e);
       nextCard();
+    }
+  };
+
+  const processSwipeAction = async (action, profile, userId) => {
+    // Record the action
+    await supabase.from('user_actions').insert({
+      actor_user_id: userId,
+      target_user_id: profile.id,
+      action_type: action
+    });
+
+    // Handle matches for real profiles only
+    if (!profile.is_decoy && action === 'like') {
+      const { data: mutual } = await supabase
+        .from('user_actions')
+        .select('id')
+        .eq('actor_user_id', profile.id)
+        .eq('target_user_id', userId)
+        .eq('action_type', 'like')
+        .single();
+
+      if (mutual) {
+        await supabase.from('matches').insert({ user1_id: userId, user2_id: profile.id });
+        setMatchedProfile(profile);
+        setShowMatch(true);
+      }
+    }
+
+    // If liking a decoy, start the decoy chat
+    if (profile.is_decoy && action === 'like') {
+      const result = await fishTrapService.startDecoyChat(userId, profile.id);
+      if (result.success) {
+        Alert.alert(
+          'Chat Started!',
+          `You've matched with ${profile.display_name}! Start a conversation.`,
+          [{ text: 'OK' }]
+        );
+      }
     }
   };
 
@@ -178,7 +218,7 @@ const DatingHome = ({ navigation }) => {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Discover</Text>
-        <TouchableOpacity style={styles.headerIcon} onPress={() => navigation.navigate('Filters')}>
+        <TouchableOpacity testID="filters-button" style={styles.headerIcon} onPress={() => navigation.navigate('Filters')}>
           <Ionicons name="options" size={24} color={Colors.text} />
         </TouchableOpacity>
       </View>
@@ -206,13 +246,13 @@ const DatingHome = ({ navigation }) => {
       </View>
 
       <View style={styles.actions}>
-        <TouchableOpacity style={[styles.actionBtn, { borderColor: Colors.error }]} onPress={() => handleManualAction('pass')}>
+        <TouchableOpacity testID="pass-button" style={[styles.actionBtn, { borderColor: Colors.error }]} onPress={() => handleManualAction('pass')}>
           <Ionicons name="close" size={32} color={Colors.error} />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionBtn, styles.largeBtn, { borderColor: Colors.primary }]} onPress={() => handleManualAction('superlike')}>
+        <TouchableOpacity testID="superlike-button" style={[styles.actionBtn, styles.largeBtn, { borderColor: Colors.primary }]} onPress={() => handleManualAction('superlike')}>
           <Ionicons name="star" size={32} color={Colors.primary} />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionBtn, { borderColor: Colors.success }]} onPress={() => handleManualAction('like')}>
+        <TouchableOpacity testID="like-button" style={[styles.actionBtn, { borderColor: Colors.success }]} onPress={() => handleManualAction('like')}>
           <Ionicons name="heart" size={32} color={Colors.success} />
         </TouchableOpacity>
       </View>
@@ -231,6 +271,45 @@ const DatingHome = ({ navigation }) => {
           <TouchableOpacity style={{ marginTop: 20 }} onPress={() => setShowMatch(false)}>
             <Text style={{ color: '#fff' }}>Keep Swiping</Text>
           </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* Verification Required Popup */}
+      <Modal visible={showVerificationPopup} transparent animationType="fade">
+        <View style={styles.verificationOverlay}>
+          <View style={styles.verificationModal}>
+            <Text style={styles.verificationTitle}>Verification Required</Text>
+            <Text style={styles.verificationMessage}>
+              To connect with verified users like {selectedRealProfile?.display_name}, you need to complete verification first.
+            </Text>
+            <Text style={styles.verificationSubMessage}>
+              Verification helps ensure safety and quality matches for everyone.
+            </Text>
+            <View style={styles.verificationButtons}>
+              <TouchableOpacity
+                testID="verify-popup-button"
+                style={[styles.verificationBtn, styles.verifyBtn]}
+                onPress={() => {
+                  setShowVerificationPopup(false);
+                  // Navigate to verification screen
+                  navigation.navigate('VideoVerification'); // Navigate to verification screen
+                }}
+              >
+                <Text style={styles.verifyBtnText}>Get Verified</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                testID="keep-swiping-button"
+                style={[styles.verificationBtn, styles.cancelBtn]}
+                onPress={() => {
+                  setShowVerificationPopup(false);
+                  // Continue swiping without liking this profile
+                  nextCard();
+                }}
+              >
+                <Text style={styles.cancelBtnText}>Keep Swiping</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </Modal>
     </View>
@@ -259,6 +338,17 @@ const styles = StyleSheet.create({
   matchPic: { width: 100, height: 100, borderRadius: 50, borderWidth: 3, borderColor: Colors.primary },
   msgBtn: { backgroundColor: Colors.primary, paddingHorizontal: 40, paddingVertical: 16, borderRadius: 30 },
   msgBtnText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+  verificationOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  verificationModal: { backgroundColor: Colors.surface, borderRadius: 20, padding: 24, width: '90%', maxWidth: 400 },
+  verificationTitle: { fontSize: 24, fontWeight: 'bold', color: Colors.text, marginBottom: 16, textAlign: 'center' },
+  verificationMessage: { fontSize: 16, color: Colors.text, marginBottom: 12, lineHeight: 22, textAlign: 'center' },
+  verificationSubMessage: { fontSize: 14, color: Colors.textSecondary, marginBottom: 24, lineHeight: 20, textAlign: 'center' },
+  verificationButtons: { flexDirection: 'row', gap: 12 },
+  verificationBtn: { flex: 1, paddingVertical: 14, borderRadius: 25, alignItems: 'center' },
+  verifyBtn: { backgroundColor: Colors.primary },
+  verifyBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  cancelBtn: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.textSecondary },
+  cancelBtnText: { color: Colors.text, fontSize: 16 },
 });
 
 module.exports = DatingHome;

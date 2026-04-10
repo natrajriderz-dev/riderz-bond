@@ -2,6 +2,7 @@
 const React = require('react');
 const { View, Text, TouchableOpacity, Platform } = require('react-native');
 const { Ionicons } = require('@expo/vector-icons');
+const { LinearGradient } = require('expo-linear-gradient');
 const { supabase } = require('../../../supabase');
 const Colors = require('../../theme/Colors');
 const AuthStyles = require('./AuthStyles');
@@ -12,7 +13,7 @@ const LandingScreen = ({ navigation }) => {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: provider,
         options: {
-          redirectTo: 'bondapp://login-callback', // Change to your actual deep link
+          redirectTo: 'suyavaraa://login-callback',
         },
       });
 
@@ -26,24 +27,29 @@ const LandingScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={AuthStyles.centerContainer}>
-      <View style={AuthStyles.logo}>
-        <View style={{
-          width: 100,
-          height: 100,
-          borderRadius: 50,
-          backgroundColor: Colors.primary,
-          justifyContent: 'center',
-          alignItems: 'center'
-        }}>
-          <Text style={{ fontSize: 36, color: Colors.text, fontWeight: 'bold' }}>BOND</Text>
+    <LinearGradient
+      colors={[ '#4F46E5', '#8B5CF6', '#A855F7' ]}
+      start={[0, 0]}
+      end={[1, 1]}
+      style={AuthStyles.centerContainer}
+    >
+      <View style={[AuthStyles.card, { width: '100%', maxWidth: 420 }]}> 
+        <View style={AuthStyles.logo}>
+          <View style={{
+            width: 104,
+            height: 104,
+            borderRadius: 52,
+            backgroundColor: '#EC4899',
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginBottom: 16,
+          }}>
+            <Text style={{ fontSize: 32, color: '#FFFFFF', fontWeight: '800' }}>SUYA</Text>
+          </View>
         </View>
-      </View>
 
-      <Text style={AuthStyles.title}>Welcome to BOND</Text>
-      <Text style={AuthStyles.subtitle}>
-        The premium dating app for meaningful connections
-      </Text>
+        <Text style={[AuthStyles.title, { color: '#111827' }]}>Welcome to Suyavaraa</Text>
+        <Text style={[AuthStyles.subtitle, { color: '#6B7280' }]}>Build your profile and connect meaningfully.</Text>
 
       <View style={AuthStyles.buttonContainer}>
         <TouchableOpacity
@@ -83,26 +89,9 @@ const LandingScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity
-        onPress={() => {
-          navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
-        }}
-        style={{ marginTop: 40, backgroundColor: '#1F2937', paddingHorizontal: 28, paddingVertical: 12, borderRadius: 25, borderWidth: 1, borderColor: '#D97706' }}
-      >
-        <Text style={{ color: '#D97706', fontSize: 14, fontWeight: '700' }}>⚡ Dev Skip → Main App</Text>
-      </TouchableOpacity>
-      
-      {/* Test Account Info (Dev only) */}
-      <View style={{ marginTop: 20, padding: 16, backgroundColor: '#1F2937', borderRadius: 12, borderWidth: 1, borderColor: '#374151' }}>
-        <Text style={{ color: '#9CA3AF', fontSize: 12, marginBottom: 8 }}>Test Account Info:</Text>
-        <Text style={{ color: '#D97706', fontSize: 12, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>
-          Phone: {process.env.EXPO_PUBLIC_TEST_PHONE || '+919999999999'}
-        </Text>
-        <Text style={{ color: '#D97706', fontSize: 12, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', marginTop: 4 }}>
-          OTP: {process.env.EXPO_PUBLIC_TEST_OTP || '123456'}
-        </Text>
-      </View>
+
     </View>
+    </LinearGradient>
   );
 };
 

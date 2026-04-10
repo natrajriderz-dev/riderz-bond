@@ -13,10 +13,11 @@ const {
   Alert,
   ActivityIndicator,
   Modal,
-  Dimensions
+  Dimensions,
+  Platform,
 } = require('react-native');
 const { createStackNavigator } = require('@react-navigation/stack');
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 const AsyncStorage = require('@react-native-async-storage/async-storage').default;
 const axios = require('axios');
 const ImagePicker = require('expo-image-picker');
@@ -26,6 +27,7 @@ const { LinearGradient } = require('expo-linear-gradient');
 const { width } = Dimensions.get('window');
 const { useMode } = require('../../context/ModeContext');
 const PremiumScreen = require('../../src/screens/main/PremiumScreen');
+const notificationService = require('../../src/services/notificationService');
 const Stack = createStackNavigator();
 
 // Colors
@@ -52,6 +54,9 @@ const matrimonyColors = {
   textMuted: '#9CA3AF',
   border: '#E5E5EA',
 };
+
+// Default colors (will be overridden based on mode in components)
+const colors = datingColors;
 
 // Styles
 const styles = StyleSheet.create({
@@ -972,19 +977,41 @@ const EditProfileScreen = ({ navigation }) => {
 
   const pickImage = async (index) => {
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
+      // For web, use file input
+      if (Platform.OS === 'web') {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = async (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              const newPhotos = [...photos];
+              newPhotos[index] = event.target.result;
+              setPhotos(newPhotos);
+            };
+            reader.readAsDataURL(file);
+          }
+        };
+        input.click();
+      } else {
+        // For native, use ImagePicker
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+        });
 
-      if (!result.canceled) {
-        const newPhotos = [...photos];
-        newPhotos[index] = result.assets[0].uri;
-        setPhotos(newPhotos);
+        if (!result.canceled) {
+          const newPhotos = [...photos];
+          newPhotos[index] = result.assets[0].uri;
+          setPhotos(newPhotos);
+        }
       }
     } catch (error) {
+      console.error('Pick image error:', error);
       Alert.alert('Error', 'Failed to pick image');
     }
   };
@@ -1138,6 +1165,20 @@ const SettingsScreen = ({ navigation }) => {
   const [showOnline, setShowOnline] = useState(true);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
+  useEffect(() => {
+    loadNotificationPreference();
+  }, []);
+
+  const loadNotificationPreference = async () => {
+    const enabled = await notificationService.areNotificationsEnabled();
+    setNotifications(enabled);
+  };
+
+  const handleNotificationToggle = async (value) => {
+    setNotifications(value);
+    await notificationService.setNotificationsEnabled(value);
+  };
+
   const handleLogout = () => {
     Alert.alert(
       'Logout',
@@ -1224,7 +1265,7 @@ const SettingsScreen = ({ navigation }) => {
             </View>
             <Switch
               value={notifications}
-              onValueChange={setNotifications}
+              onValueChange={handleNotificationToggle}
               trackColor={{ false: colors.border, true: colors.primary }}
               thumbColor={colors.text}
               style={styles.switch}

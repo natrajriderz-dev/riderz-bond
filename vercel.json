@@ -1,0 +1,6 @@
+{
+  "version": 2,
+  "buildCommand": "echo 'Deploying static files for admin dashboard'",
+  "outputDirectory": ".",
+  "cleanUrls": true
+}

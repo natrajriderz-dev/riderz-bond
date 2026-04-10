@@ -5,6 +5,7 @@ const Colors = require('../../theme/Colors');
 const HomeScreen = require('../../../screens/main/HomeScreen');
 const FiltersScreen = require('./FiltersScreen');
 const SuyamvaramScreen = require('../../screens/main/SuyamvaramScreen');
+const CreateSuyamvaramScreen = require('./CreateSuyamvaramScreen');
 
 const Stack = createStackNavigator();
 
@@ -19,6 +20,7 @@ const HomeStack = () => {
     >
       <Stack.Screen name="HomeMain" component={HomeScreen} />
       <Stack.Screen name="Suyamvaram" component={SuyamvaramScreen} />
+      <Stack.Screen name="CreateSuyamvaram" component={CreateSuyamvaramScreen} />
       <Stack.Screen 
         name="Filters" 
         component={FiltersScreen}

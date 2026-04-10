@@ -116,7 +116,7 @@ const BasicInfoScreen = ({ navigation, route }) => {
             </View>
           )}
         </TouchableOpacity>
-        <TouchableOpacity style={AuthStyles.uploadButton} onPress={showPhotoOptions}>
+        <TouchableOpacity testID="profile-photo-upload" style={AuthStyles.uploadButton} onPress={showPhotoOptions}>
           <Text style={AuthStyles.uploadButtonText}>
             {photo ? 'Change Photo' : 'Upload Profile Photo'}
           </Text>
@@ -143,7 +143,7 @@ const BasicInfoScreen = ({ navigation, route }) => {
 
       {error ? <Text style={AuthStyles.errorText}>{error}</Text> : null}
       
-      <TouchableOpacity style={[AuthStyles.button, { marginTop: 32 }]} onPress={handleSubmit} disabled={loading}>
+      <TouchableOpacity testID="complete-registration-button" style={[AuthStyles.button, { marginTop: 32 }]} onPress={handleSubmit} disabled={loading}>
         <Text style={AuthStyles.buttonText}>{loading ? 'Saving...' : 'Complete Registration'}</Text>
       </TouchableOpacity>
 

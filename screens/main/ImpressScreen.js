@@ -12,11 +12,11 @@ const {
 } = require('react-native');
 const { useState, useEffect } = React;
 const { Ionicons } = require('@expo/vector-icons');
-const { supabase } = require('../../../supabase');
+const { supabase } = require('../../supabase');
 const { useMode } = require('../../context/ModeContext');
-const Colors = require('../../theme/Colors');
-const PostCard = require('../../components/impress/PostCard');
-const CreatePostModal = require('../../components/modals/CreatePostModal');
+const Colors = require('../../src/theme/Colors');
+const PostCard = require('../../src/components/impress/PostCard');
+const CreatePostModal = require('../../src/components/modals/CreatePostModal');
 
 const ImpressScreen = ({ navigation }) => {
   const [posts, setPosts] = useState([]);
@@ -53,10 +53,8 @@ const ImpressScreen = ({ navigation }) => {
         .select(`
           id, caption, media_urls, tribe_tags, visibility, created_at,
           user:user_id (id, full_name, city, trust_level, user_profiles(primary_photo_url)),
-          post_reactions (*),
-          my_reaction:post_reactions(id, reaction_type, created_at)
+          post_reactions (id, reaction_type, user_id, created_at)
         `)
-        .eq('my_reaction.user_id', user.id)
         .order('created_at', { ascending: false })
         .range(currentPage * 10, (currentPage + 1) * 10 - 1);
 
@@ -65,6 +63,8 @@ const ImpressScreen = ({ navigation }) => {
       if (postsData) {
         const mappedPosts = postsData.map(post => {
           const reaction_counts = { total: 0 };
+          const userReaction = (post.post_reactions || []).find(r => r.user_id === user.id);
+          
           (post.post_reactions || []).forEach(r => {
             reaction_counts[r.reaction_type] = (reaction_counts[r.reaction_type] || 0) + 1;
             reaction_counts.total++;
@@ -85,10 +85,10 @@ const ImpressScreen = ({ navigation }) => {
             visibility: post.visibility,
             created_at: post.created_at,
             reaction_counts,
-            user_reaction: post.my_reaction && post.my_reaction.length > 0 ? {
-              id: post.my_reaction[0].id,
-              type: post.my_reaction[0].reaction_type,
-              created_at: post.my_reaction[0].created_at
+            user_reaction: userReaction ? {
+              id: userReaction.id,
+              type: userReaction.reaction_type,
+              created_at: userReaction.created_at
             } : null
           };
         });

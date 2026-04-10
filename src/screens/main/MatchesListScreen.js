@@ -74,7 +74,7 @@ const MatchesListScreen = ({ navigation }) => {
           id: match.id,
           other_user: {
             id: otherUser?.id,
-            display_name: otherUser?.full_name || 'BOND User',
+            display_name: otherUser?.full_name || 'Suyavaraa User',
             profile_picture_url: otherUser?.user_profiles?.[0]?.primary_photo_url || null,
           },
           last_message: lastMsg ? {

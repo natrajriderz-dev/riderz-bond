@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "bond-app",
-    "slug": "bond-app",
+    "name": "Suyavaraa",
+    "slug": "suyavaraa",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -12,16 +12,32 @@
       "backgroundColor": "#121212"
     },
     "ios": {
-      "supportsTablet": true
+      "bundleIdentifier": "com.trusthub.bondapp",
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": ["remote-notification"],
+        "NSUserNotificationsUsageDescription": "This app uses notifications to alert you about new matches, messages, and important updates."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#121212"
-      }
+      },
+      "permissions": [
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE"
+      ],
+      "package": "com.trusthub.bondapp"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "https": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "YOUR_EAS_PROJECT_ID_HERE"
+      }
     }
   }
 }

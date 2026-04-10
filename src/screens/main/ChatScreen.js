@@ -19,6 +19,9 @@ const { supabase } = require('../../../supabase');
 const Colors = require('../../theme/Colors');
 const MessageBubble = require('../../components/chat/MessageBubble');
 const ChatInput = require('../../components/chat/ChatInput');
+const fishTrapService = require('../../services/fishTrapService');
+const moderationService = require('../../services/moderationService');
+const notificationService = require('../../services/notificationService');
 
 const ChatScreen = ({ route, navigation }) => {
   const { conversationId, otherUser } = route.params;
@@ -29,6 +32,8 @@ const ChatScreen = ({ route, navigation }) => {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [isTyping, setIsTyping] = useState(false);
   const [otherUserTyping, setOtherUserTyping] = useState(false);
+  const [isDecoyChat, setIsDecoyChat] = useState(false);
+  const [decoyInteraction, setDecoyInteraction] = useState(null);
   
   const flatListRef = useRef(null);
   const typingTimeoutRef = useRef(null);
@@ -58,6 +63,11 @@ const ChatScreen = ({ route, navigation }) => {
           if (prev.find(m => m.id === newMessage.id)) return prev;
           return [...prev, newMessage];
         });
+
+        // Send notification for incoming messages (not from current user)
+        if (payload.new.sender_id !== currentUserId) {
+          notificationService.notifyMessage(otherUser, payload.new.content);
+        }
       })
       .subscribe();
 
@@ -80,31 +90,52 @@ const ChatScreen = ({ route, navigation }) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       setCurrentUserId(user.id);
-      loadMessages(user.id);
-      markAsRead(user.id);
+
+      // Check if this is a decoy chat
+      const interaction = await checkIfDecoyChat(user.id, conversationId);
+      if (interaction) {
+        setIsDecoyChat(true);
+        setDecoyInteraction(interaction);
+        loadDecoyMessages(interaction.id);
+      } else {
+        setIsDecoyChat(false);
+        loadMessages(user.id);
+        markAsRead(user.id);
+      }
     }
   };
 
-  const loadMessages = async (userId) => {
+  const checkIfDecoyChat = async (userId, conversationId) => {
     try {
+      // Try to find a decoy interaction with this conversation ID
       const { data, error } = await supabase
-        .from('messages')
+        .from('fish_trap_interactions')
         .select('*')
-        .eq('match_id', conversationId)
-        .order('created_at', { ascending: true });
+        .eq('user_id', userId)
+        .eq('id', conversationId)
+        .single();
 
-      if (data) {
-        setMessages(data.map(m => ({
-          id: m.id,
-          sender_id: m.sender_id,
-          message_text: m.content,
-          message_type: m.message_type || 'text',
-          created_at: m.created_at,
-          read_at: m.read_at
-        })));
-      }
-    } catch (e) {
-      console.log('Load error:', e.message);
+      if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows
+      return data;
+    } catch (error) {
+      console.error('Error checking decoy chat:', error);
+      return null;
+    }
+  };
+
+  const loadDecoyMessages = async (interactionId) => {
+    try {
+      const history = await fishTrapService.getConversationHistory(interactionId);
+      const formattedMessages = history.map(msg => ({
+        id: msg.id,
+        sender_id: msg.sender_type === 'user' ? currentUserId : 'decoy',
+        message_text: msg.displayed_content,
+        message_type: 'text',
+        created_at: msg.created_at
+      }));
+      setMessages(formattedMessages);
+    } catch (error) {
+      console.error('Error loading decoy messages:', error);
     } finally {
       setLoading(false);
     }
@@ -127,29 +158,67 @@ const ChatScreen = ({ route, navigation }) => {
     setSending(true);
     stopTyping();
 
-    try {
-      const { data, error } = await supabase
-        .from('messages')
-        .insert({
-          match_id: conversationId,
-          sender_id: currentUserId,
-          content: text,
-          message_type: 'text'
-        })
-        .select()
-        .single();
+    // Profanity scrubbing
+    const scrubbedText = moderationService.scrubText(text);
 
-      if (data) {
-        // Optimistic update
-        setMessages(prev => [...prev, {
-          id: data.id,
-          sender_id: currentUserId,
-          message_text: text,
-          message_type: 'text',
-          created_at: data.created_at
-        }]);
+    try {
+      if (isDecoyChat && decoyInteraction) {
+        // Handle decoy chat through Fish Trap service
+        const result = await fishTrapService.processUserMessage(decoyInteraction.id, text);
+
+        if (result.success) {
+          // Add user message optimistically
+          const userMessage = {
+            id: Date.now().toString(),
+            sender_id: currentUserId,
+            message_text: result.scrubbed ? result.response : text, // Show scrubbed version if modified
+            message_type: 'text',
+            created_at: new Date().toISOString()
+          };
+          setMessages(prev => [...prev, userMessage]);
+
+          // Add decoy response after a short delay
+          setTimeout(() => {
+            const decoyMessage = {
+              id: (Date.now() + 1).toString(),
+              sender_id: 'decoy',
+              message_text: result.response,
+              message_type: 'text',
+              created_at: new Date().toISOString()
+            };
+            setMessages(prev => [...prev, decoyMessage]);
+          }, 1000 + Math.random() * 2000); // Random delay 1-3 seconds
+
+        } else {
+          Alert.alert('Error', result.error || 'Failed to send message');
+        }
+
+      } else {
+        // Handle regular chat
+        const { data, error } = await supabase
+          .from('messages')
+          .insert({
+            match_id: conversationId,
+            sender_id: currentUserId,
+            content: scrubbedText,
+            message_type: 'text'
+          })
+          .select()
+          .single();
+
+        if (data) {
+          // Optimistic update
+          setMessages(prev => [...prev, {
+            id: data.id,
+            sender_id: currentUserId,
+            message_text: scrubbedText,
+            message_type: 'text',
+            created_at: data.created_at
+          }]);
+        }
       }
-    } catch (e) {
+    } catch (error) {
+      console.error('Send message error:', error);
       Alert.alert('Error', 'Message failed to send');
       setInputText(text); // Restore text on failure
     } finally {

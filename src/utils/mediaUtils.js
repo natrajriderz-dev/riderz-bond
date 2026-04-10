@@ -1,7 +1,13 @@
 // src/utils/mediaUtils.js
 const { supabase } = require('../../supabase');
-const ImagePicker = require('expo-image-picker');
-const ImageManipulator = require('expo-image-manipulator');
+const { Platform } = require('react-native');
+let ImagePicker, ImageManipulator;
+try {
+  ImagePicker = require('expo-image-picker');
+  ImageManipulator = require('expo-image-manipulator');
+} catch (e) {
+  // Not available on web
+}
 const { Alert } = require('react-native');
 
 /**
@@ -9,6 +15,40 @@ const { Alert } = require('react-native');
  */
 const pickMedia = async (source = 'library', allowsEditing = true) => {
   try {
+    // For web, use file input
+    if (Platform.OS === 'web') {
+      return new Promise((resolve) => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = async (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              resolve({
+                uri: event.target.result,
+                width: null,
+                height: null,
+                type: file.type,
+                name: file.name,
+              });
+            };
+            reader.readAsDataURL(file);
+          } else {
+            resolve(null);
+          }
+        };
+        input.click();
+      });
+    }
+
+    // For native, use ImagePicker
+    if (!ImagePicker) {
+      Alert.alert('Error', 'ImagePicker not available');
+      return null;
+    }
+
     const permission = source === 'library' 
       ? await ImagePicker.requestMediaLibraryPermissionsAsync()
       : await ImagePicker.requestCameraPermissionsAsync();
@@ -44,6 +84,15 @@ const pickMedia = async (source = 'library', allowsEditing = true) => {
  */
 const compressImage = async (uri) => {
   try {
+    // For web, return as-is (compression not available)
+    if (Platform.OS === 'web') {
+      return uri;
+    }
+
+    if (!ImageManipulator) {
+      return uri;
+    }
+
     const manipResult = await ImageManipulator.manipulateAsync(
       uri,
       [{ resize: { width: 1000 } }], // Resize for profile/post
@@ -61,19 +110,31 @@ const compressImage = async (uri) => {
  */
 const uploadMedia = async (uri, bucket, path) => {
   try {
-    const formData = new FormData();
     const fileName = path.split('/').pop();
-    const ext = fileName.split('.').pop();
+    const ext = fileName.split('.').pop().toLowerCase();
+    const mimeType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
 
-    formData.append('file', {
-      uri: uri,
-      name: fileName,
-      type: `image/${ext}`
-    });
+    let fileData;
 
+    if (Platform.OS === 'web') {
+      // For web: uri is a DataURL (base64)
+      // Convert DataURL to Blob
+      const response = await fetch(uri);
+      fileData = await response.blob();
+    } else {
+      // For native: Read file as base64
+      const FileSystem = require('expo-file-system').default;
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      fileData = Buffer.from(base64, 'base64');
+    }
+
+    // Upload to Supabase
     const { data, error } = await supabase.storage
       .from(bucket)
-      .upload(path, formData, {
+      .upload(path, fileData, {
+        contentType: mimeType,
         cacheControl: '3600',
         upsert: true
       });

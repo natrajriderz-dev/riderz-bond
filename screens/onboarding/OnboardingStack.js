@@ -9,13 +9,17 @@ const {
   Alert,
   ActivityIndicator,
   FlatList,
-  Modal
+  Modal,
+  TextInput,
+  Image,
+  Platform
 } = require('react-native');
 const { createStackNavigator } = require('@react-navigation/stack');
 const { Camera, CameraType } = require('expo-camera');
 const { useState, useEffect, useRef } = React;
 const AsyncStorage = require('@react-native-async-storage/async-storage').default;
 const axios = require('axios');
+const { pickMedia, compressImage } = require('../../src/utils/mediaUtils');
 
 const Stack = createStackNavigator();
 
@@ -513,6 +517,7 @@ const ModeSelectScreen = ({ navigation }) => {
         {modes.map((mode) => (
           <TouchableOpacity
             key={mode.id}
+            testID={`mode-select-${mode.id}`}
             style={[
               styles.modeCard,
               selectedMode === mode.id && styles.modeCardSelected,
@@ -530,6 +535,7 @@ const ModeSelectScreen = ({ navigation }) => {
         ))}
 
         <TouchableOpacity
+          testID="mode-continue-button"
           style={[styles.button, !selectedMode && styles.buttonDisabled]}
           onPress={handleContinue}
           disabled={!selectedMode || loading}
@@ -566,16 +572,14 @@ const DatingProfileScreen = ({ navigation }) => {
     'Not Sure Yet',
   ];
 
-  const handlePhotoUpload = (index) => {
-    Alert.alert(
-      'Upload Photo',
-      `Choose photo ${index + 1}`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Take Photo', onPress: () => console.log('Take photo', index) },
-        { text: 'Choose from Gallery', onPress: () => console.log('Choose from gallery', index) },
-      ]
-    );
+  const handlePhotoUpload = async (index) => {
+    const media = await pickMedia('library');
+    if (media) {
+      const compressed = await compressImage(media.uri);
+      const newPhotos = [...photos];
+      newPhotos[index] = compressed;
+      setPhotos(newPhotos);
+    }
   };
 
   const handleContinue = async () => {
@@ -605,7 +609,10 @@ const DatingProfileScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContainer}
+        nestedScrollViewEnabled={true}
+      >
         <View style={styles.progressContainer}>
           <View style={styles.progressDot} />
           <View style={[styles.progressDot, styles.progressDotActive]} />
@@ -687,6 +694,7 @@ const DatingProfileScreen = ({ navigation }) => {
           {photos.map((photo, index) => (
             <TouchableOpacity
               key={index}
+              testID={`dating-photo-${index}`}
               style={[
                 styles.photoItem,
                 photo && styles.photoItemSelected,
@@ -708,6 +716,7 @@ const DatingProfileScreen = ({ navigation }) => {
         </View>
 
         <TouchableOpacity
+          testID="dating-profile-continue-button"
           style={styles.button}
           onPress={handleContinue}
           disabled={loading}
@@ -767,7 +776,10 @@ const MatrimonyProfileScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContainer}
+        nestedScrollViewEnabled={true}
+      >
         <View style={styles.progressContainer}>
           <View style={styles.progressDot} />
           <View style={[styles.progressDot, styles.progressDotActive]} />

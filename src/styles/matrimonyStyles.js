@@ -1,9 +1,9 @@
-import { StyleSheet, Dimensions } from 'react-native';
+const { StyleSheet, Dimensions } = require('react-native');
 
 const { width } = Dimensions.get('window');
 const isMobile = width < 768;
 
-export const matrimonyStyles = StyleSheet.create({
+const matrimonyStyles = StyleSheet.create({
   cardContainer: {
     backgroundColor: '#f9f9f9',
     borderRadius: 12,
@@ -124,3 +124,5 @@ export const matrimonyStyles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+module.exports = { matrimonyStyles };

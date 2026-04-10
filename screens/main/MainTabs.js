@@ -4,12 +4,12 @@ const { createBottomTabNavigator } = require('@react-navigation/bottom-tabs');
 const { Text, View, StyleSheet } = require('react-native');
 const { Ionicons } = require('@expo/vector-icons');
 
-const HomeStack = require('../src/screens/main/HomeStack');
+const HomeStack = require('../../src/screens/main/HomeStack');
 const ChatStack = require('./ChatStack');
 const ImpressScreen = require('./ImpressScreen');
 const TribesStack = require('./TribesScreen');
 const ProfileStack = require('./ProfileStack');
-const SuyamvaramScreen = require('../src/screens/main/SuyamvaramScreen');
+const SuyamvaramScreen = require('../../src/screens/main/SuyamvaramScreen');
 
 const { useMode } = require('../../context/ModeContext');
 const Colors = require('../../src/theme/Colors');

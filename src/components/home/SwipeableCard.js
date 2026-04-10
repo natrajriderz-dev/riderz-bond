@@ -11,6 +11,7 @@ const {
 } = require('react-native');
 const { useRef } = React;
 const { LinearGradient } = require('expo-linear-gradient');
+const { Ionicons } = require('@expo/vector-icons');
 const Colors = require('../../theme/Colors');
 
 const { width, height } = Dimensions.get('window');
@@ -86,9 +87,21 @@ const SwipeableCard = ({ profile, onSwipe }) => {
         <Text style={styles.cardCity}>{profile.city || 'Location not set'}</Text>
       </LinearGradient>
 
+      <View style={styles.cardHeader}>
+        {profile.is_verified && (
+          <View style={styles.verifiedBadge}>
+            <Ionicons name="checkmark-seal" size={20} color={Colors.primary} />
+          </View>
+        )}
+        {profile.trust_score >= 80 && (
+          <View style={styles.trustBadge}>
+            <Text style={styles.trustBadgeText}>🛡️ High Trust</Text>
+          </View>
+        )}
+      </View>
+
       {profile.tribes && profile.tribes.length > 0 && (
-        <View style={styles.cardBadge}>
-          <Text>🏷️</Text>
+        <View style={styles.cardTribesBadge}>
           <Text style={styles.cardBadgeText}>{profile.tribes[0].name}</Text>
         </View>
       )}
@@ -151,22 +164,52 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 4,
   },
-  cardBadge: {
+  cardHeader: {
     position: 'absolute',
     top: 20,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  verifiedBadge: {
+    backgroundColor: '#fff',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  trustBadge: {
+    backgroundColor: 'rgba(16, 185, 129, 0.9)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  trustBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  cardTribesBadge: {
+    position: 'absolute',
+    top: 70, // Below head info
     right: 20,
     backgroundColor: Colors.primary,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
   },
   cardBadgeText: {
-    color: Colors.text,
+    color: '#fff',
     fontSize: 12,
     fontWeight: '600',
-    marginLeft: 4,
   },
   swipeLabel: {
     position: 'absolute',

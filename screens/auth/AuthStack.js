@@ -9,6 +9,8 @@ const LandingScreen = require('../../src/screens/auth/LandingScreen');
 const LoginScreen = require('../../src/screens/auth/LoginScreen');
 const SignupScreen = require('../../src/screens/auth/SignupScreen');
 const BasicInfoScreen = require('../../src/screens/auth/BasicInfoScreen');
+const VideoVerificationScreen = require('../../src/screens/auth/VideoVerificationScreen');
+const VerificationSuccessScreen = require('../../src/screens/auth/VerificationSuccessScreen');
 
 const Stack = createStackNavigator();
 
@@ -55,6 +57,16 @@ const AuthStack = () => {
         name="BasicInfo"
         component={BasicInfoScreen}
         options={{ title: 'Profile Info' }}
+      />
+      <Stack.Screen
+        name="VideoVerification"
+        component={VideoVerificationScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="VerificationSuccess"
+        component={VerificationSuccessScreen}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );

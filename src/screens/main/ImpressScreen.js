@@ -13,10 +13,11 @@ const {
 const { useState, useEffect } = React;
 const { Ionicons } = require('@expo/vector-icons');
 const { supabase } = require('../../../supabase');
-const { useMode } = require('../../context/ModeContext');
+const { useMode } = require('../../../context/ModeContext');
 const Colors = require('../../theme/Colors');
 const PostCard = require('../../components/impress/PostCard');
 const CreatePostModal = require('../../components/modals/CreatePostModal');
+const moderationService = require('../../services/moderationService');
 const { uploadMedia } = require('../../utils/mediaUtils');
 
 const ImpressScreen = ({ navigation }) => {
@@ -111,6 +112,15 @@ const ImpressScreen = ({ navigation }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      // 1. Content Moderation Check
+      const modResult = await moderationService.screenText(postData.caption, user.id);
+      if (!modResult.safe) {
+        Alert.alert('Content Blocked', `Your post contains ${modResult.reason}. Please revise your caption.`);
+        return;
+      }
+
+      const captionToUse = modResult.scrubbed || postData.caption;
+
       let mediaUrls = [];
       if (postData.photo) {
         const fileName = `post_${user.id}_${Date.now()}.jpg`;
@@ -122,7 +132,7 @@ const ImpressScreen = ({ navigation }) => {
         .from('posts')
         .insert({
           user_id: user.id,
-          caption: postData.caption,
+          caption: captionToUse,
           media_urls: mediaUrls,
           tribe_tags: postData.tribe_tags,
           visibility: postData.visibility

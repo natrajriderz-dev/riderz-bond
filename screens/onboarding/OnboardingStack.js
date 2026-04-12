@@ -511,7 +511,7 @@ const ModeSelectScreen = ({ navigation }) => {
 
         <Text style={styles.title}>Choose Your Path</Text>
         <Text style={styles.subtitle}>
-          Select how you'd like to use BOND to find meaningful connections
+          Select how you'd like to use Suyavaraa to find meaningful connections
         </Text>
 
         {modes.map((mode) => (
@@ -1005,7 +1005,7 @@ const VerificationScreen = ({ navigation }) => {
 
         <Text style={styles.title}>Identity Verification</Text>
         <Text style={styles.subtitle}>
-          Record a short video saying "I want to find meaningful connections on BOND"
+          Record a short video saying "I want to find meaningful connections on Suyavaraa"
         </Text>
 
         {!recordedVideo ? (

@@ -22,7 +22,7 @@ file_writer = FileWriterTool()
 
 feature_developer = Agent(
     role='Feature Developer',
-    goal='Implement new features and improvements for bond-app',
+    goal='Implement new features and improvements for Suyavaraa',
     backstory='''Expert React Native developer with deep knowledge of Supabase, 
     state management, and mobile UI. Specializes in matrimony and dating app features.''',
     verbose=True,
@@ -294,7 +294,7 @@ def create_full_automation_crew(feature_description, target_file):
 # =======================
 
 if __name__ == "__main__":
-    print("🤖 Bond-App Development & Testing Automation")
+    print("🤖 Suyavaraa Development & Testing Automation")
     print("=" * 50)
     
     # Example 1: Develop a feature

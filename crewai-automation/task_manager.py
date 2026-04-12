@@ -3,7 +3,7 @@ from dev_test_crew import *
 import sys
 
 def main():
-    print("🤖 Bond-App Automation Task Manager")
+    print("🤖 Suyavaraa Automation Task Manager")
     print("=" * 50)
     print("\nWhat would you like to do?")
     print("1. Develop a new feature")

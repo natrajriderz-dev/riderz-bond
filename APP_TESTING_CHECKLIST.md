@@ -12,7 +12,7 @@
 
 ### Step 1: Start the App
 ```bash
-cd /home/natzridz/bond-app
+cd /home/natzridz/suyavaraa
 npm run web
 ```
 - Opens at `http://localhost:8081`

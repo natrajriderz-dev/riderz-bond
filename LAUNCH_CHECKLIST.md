@@ -1,4 +1,4 @@
-# 🚀 BOND APP LAUNCH CHECKLIST
+# 🚀 SUYAVARAA APP LAUNCH CHECKLIST
 
 ## ✅ MVP DEVELOPMENT COMPLETED
 All code is written and ready for testing.
@@ -111,7 +111,7 @@ All code is written and ready for testing.
 
 ### Step 2: Environment Test (5 mins)
 ```bash
-cd /home/natzridz/bond-app
+cd /home/natzridz/suyavaraa
 export PATH="/home/natzridz/.config/nvm/versions/node/v22.17.0/bin:$PATH"
 ./node_modules/.bin/expo --version
 ```

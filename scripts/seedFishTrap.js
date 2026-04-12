@@ -1,5 +1,5 @@
 // ============================================
-// BOND Fish Trap - Database Seeder Script
+// Suyavaraa Fish Trap - Database Seeder Script
 // ============================================
 // Seeds decoy profiles and runs initial setup for Fish Trap system
 

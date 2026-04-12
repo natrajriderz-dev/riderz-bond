@@ -684,7 +684,7 @@ const FishTrapProfileScreen = ({ navigation }) => {
       </View>
       <Text style={styles.lockedTitle}>Profile Locked</Text>
       <Text style={styles.lockedText}>
-        Complete verification to see real profiles and connect with genuine people on BOND.
+        Complete verification to see real profiles and connect with genuine people on Suyavaraa.
       </Text>
       <TouchableOpacity 
         style={styles.verifyButton}

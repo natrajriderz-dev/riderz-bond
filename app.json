@@ -12,7 +12,7 @@
       "backgroundColor": "#121212"
     },
     "ios": {
-      "bundleIdentifier": "com.trusthub.bondapp",
+      "bundleIdentifier": "com.trusthub.suyavaraa",
       "supportsTablet": true,
       "infoPlist": {
         "UIBackgroundModes": ["remote-notification"],
@@ -28,7 +28,7 @@
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE"
       ],
-      "package": "com.trusthub.bondapp"
+      "package": "com.trusthub.suyavaraa"
     },
     "web": {
       "favicon": "./assets/favicon.png",

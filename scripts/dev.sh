@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================
-# BOND App — Efficient Dev Workflow using Aider + CrewAI
+# Suyavaraa App — Efficient Dev Workflow using Aider + CrewAI
 # Usage:
 #   ./scripts/dev.sh aider "<task>" <file1> [file2] ...
 #   ./scripts/dev.sh crew  "<task>" <file>

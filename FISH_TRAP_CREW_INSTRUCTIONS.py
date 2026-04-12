@@ -1,6 +1,6 @@
 #!/server/bin/env python3
 """
-🪤 BOND Fish Trap Automated Implementation
+🪤 Suyavaraa Fish Trap Automated Implementation
 Uses CrewAI to implement the complete Fish Trap system with DeepSeek AI integration
 """
 
@@ -17,7 +17,7 @@ load_dotenv()
 # ============================================
 
 FISH_TRAP_SPEC = {
-    "name": "BOND Fish Trap - Proactive Scammer Interception",
+    "name": "Suyavaraa Fish Trap - Proactive Scammer Interception",
     "priority": "CRITICAL - FOUNDATION OF APP SAFETY",
     "api_key": os.getenv("DEEPSEEK_API_KEY", ""),  # REMOVED hardcoded key
     "deliverables": [

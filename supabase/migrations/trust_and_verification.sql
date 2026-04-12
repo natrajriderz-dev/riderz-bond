@@ -1,5 +1,5 @@
 -- ============================================
--- BOND Trust & Verification Schema
+-- Suyavaraa Trust & Verification Schema
 -- ============================================
 
 -- 1. Add Trust & Verification columns to users/profiles

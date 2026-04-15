@@ -63,7 +63,8 @@ const BasicInfoScreen = ({ navigation, route }) => {
 
       // Upload compressed photo
       const fileName = `profile_${user.id}_${Date.now()}.jpg`;
-      const photoUrl = await uploadMedia(photo.uri, 'avatars', fileName);
+      const filePath = `${user.id}/${fileName}`;
+      const photoUrl = await uploadMedia(photo.uri, 'avatars', filePath);
 
       if (!photoUrl) throw new Error('Failed to upload photo');
 
@@ -87,14 +88,22 @@ const BasicInfoScreen = ({ navigation, route }) => {
         .upsert({
           user_id: user.id,
           primary_photo_url: photoUrl
+        }, {
+          onConflict: 'user_id'
         });
 
       if (profileError) throw profileError;
 
       await AsyncStorage.setItem('onboarding_complete', 'true');
-      navigation.replace('Main');
+      const parentNavigation = navigation.getParent?.();
+      if (parentNavigation?.replace) {
+        parentNavigation.replace('Main');
+      } else {
+        navigation.replace('Main');
+      }
     } catch (err) {
-      setError(err.message || 'Failed to complete profile');
+      console.error('BasicInfo submit error:', err);
+      setError(err?.message || 'Failed to complete profile');
     } finally {
       setLoading(false);
     }

@@ -1,9 +1,12 @@
 // src/components/video/CameraCapture.js
 const React = require('react');
 const { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } = require('react-native');
-const { Camera } = require('expo-camera');
+const ExpoCamera = require('expo-camera');
 const { Ionicons } = require('@expo/vector-icons');
 const Colors = require('../../theme/Colors');
+
+const Camera = ExpoCamera.Camera || ExpoCamera;
+const CameraView = ExpoCamera.CameraView || ExpoCamera.default || null;
 
 const CameraCapture = ({ onCapture, type = 'front', instruction = 'Align your face in the oval' }) => {
   const [hasPermission, setHasPermission] = React.useState(null);
@@ -40,8 +43,15 @@ const CameraCapture = ({ onCapture, type = 'front', instruction = 'Align your fa
     }
 
     (async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      const { status: micStatus } = await Camera.requestMicrophonePermissionsAsync();
+      const requestCameraPermission =
+        ExpoCamera.requestCameraPermissionsAsync ||
+        Camera.requestCameraPermissionsAsync;
+      const requestMicrophonePermission =
+        ExpoCamera.requestMicrophonePermissionsAsync ||
+        Camera.requestMicrophonePermissionsAsync;
+
+      const { status } = await requestCameraPermission();
+      const { status: micStatus } = await requestMicrophonePermission();
       setHasPermission(status === 'granted' && micStatus === 'granted');
     })();
   }, []);
@@ -99,6 +109,14 @@ const CameraCapture = ({ onCapture, type = 'front', instruction = 'Align your fa
     );
   }
 
+  if (Platform.OS !== 'web' && !CameraView) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.errorText}>Camera view is unavailable in this build.</Text>
+      </View>
+    );
+  }
+
   if (Platform.OS === 'web') {
     return (
       <View style={styles.container}>
@@ -114,29 +132,28 @@ const CameraCapture = ({ onCapture, type = 'front', instruction = 'Align your fa
 
   return (
     <View style={styles.container}>
-      <Camera
+      <CameraView
         ref={cameraRef}
         style={styles.camera}
-        type={cameraType}
+        facing={cameraType}
         onCameraReady={() => setIsReady(true)}
-      >
-        <View style={styles.overlay}>
-          <View style={styles.maskContainer}>
-            <View style={styles.ovalMask} />
-          </View>
-          <View style={styles.controls}>
-            <Text style={styles.instruction}>{instruction}</Text>
-            <TouchableOpacity 
-              style={[styles.captureBtn, isRecording && styles.recordingBtn]} 
-              onPress={isRecording ? stopVideoRecording : handleCapture}
-              onLongPress={startVideoRecording}
-            >
-              <View style={styles.captureInner} />
-            </TouchableOpacity>
-            <Text style={styles.subInstruction}>Tap for photo, Hold for 5s video</Text>
-          </View>
+      />
+      <View style={styles.overlay}>
+        <View style={styles.maskContainer}>
+          <View style={styles.ovalMask} />
         </View>
-      </Camera>
+        <View style={styles.controls}>
+          <Text style={styles.instruction}>{instruction}</Text>
+          <TouchableOpacity 
+            style={[styles.captureBtn, isRecording && styles.recordingBtn]} 
+            onPress={isRecording ? stopVideoRecording : handleCapture}
+            onLongPress={startVideoRecording}
+          >
+            <View style={styles.captureInner} />
+          </TouchableOpacity>
+          <Text style={styles.subInstruction}>Tap for photo, Hold for 5s video</Text>
+        </View>
+      </View>
     </View>
   );
 };
@@ -144,7 +161,12 @@ const CameraCapture = ({ onCapture, type = 'front', instruction = 'Align your fa
 const styles = StyleSheet.create({
   container: { flex: 1, borderRadius: 20, overflow: 'hidden', backgroundColor: '#000' },
   camera: { flex: 1 },
-  overlay: { flex: 1, justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.2)' },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
   maskContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%' },
   ovalMask: {
     width: 250,

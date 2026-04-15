@@ -11,10 +11,10 @@ const {
 } = require('react-native');
 const { useState } = React;
 const { Ionicons } = require('@expo/vector-icons');
-const { LinearGradient } = require('expo-linear-gradient');
 const Colors = require('../../theme/Colors');
-const CameraCapture = require('../../components/video/CameraCapture').default;
+const CameraCapture = require('../../components/video/CameraCapture');
 const { supabase } = require('../../../supabase');
+const { uploadMedia } = require('../../utils/mediaUtils');
 
 const VideoVerificationScreen = ({ navigation }) => {
   const [step, setStep] = useState(1); // 1: Instructions, 2: Capture, 3: Review
@@ -34,30 +34,17 @@ const VideoVerificationScreen = ({ navigation }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      // 1. Upload media to Supabase storage
       const fileExt = capturedMedia.uri.split('.').pop();
       const fileName = `${user.id}_${Date.now()}.${fileExt}`;
       const filePath = `verifications/${fileName}`;
-
-      const formData = new FormData();
-      formData.append('file', {
-        uri: capturedMedia.uri,
-        name: fileName,
-        type: `video/${fileExt === 'mp4' ? 'mp4' : 'quicktime'}`,
-      });
-
-      const { data: upload, error: uploadError } = await supabase.storage
-        .from('verification_media')
-        .upload(filePath, formData);
-
-      if (uploadError) throw uploadError;
+      const mediaUrl = await uploadMedia(capturedMedia.uri, 'verification_media', filePath);
 
       // 2. Register verification request in DB
       const { error: dbError } = await supabase
         .from('verification_requests')
         .insert({
           user_id: user.id,
-          media_url: filePath,
+          media_url: mediaUrl,
           status: 'pending',
           created_at: new Date()
         });

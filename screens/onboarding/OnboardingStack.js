@@ -15,11 +15,16 @@ const {
   Platform
 } = require('react-native');
 const { createStackNavigator } = require('@react-navigation/stack');
-const { Camera } = require('expo-camera');
+const ExpoCamera = require('expo-camera');
+const ExpoAV = require('expo-av');
 const { useState, useEffect, useRef } = React;
 const AsyncStorage = require('@react-native-async-storage/async-storage').default;
 const axios = require('axios');
 const { pickMedia, compressImage } = require('../../src/utils/mediaUtils');
+
+const Camera = ExpoCamera.Camera || ExpoCamera;
+const CameraView = ExpoCamera.CameraView || ExpoCamera.default || null;
+const Video = ExpoAV.Video || ExpoAV.default?.Video || ExpoAV.default || null;
 
 const Stack = createStackNavigator();
 
@@ -876,7 +881,10 @@ const VerificationScreen = ({ navigation }) => {
 
   useEffect(() => {
     (async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
+      const requestCameraPermission =
+        ExpoCamera.requestCameraPermissionsAsync ||
+        Camera.requestCameraPermissionsAsync;
+      const { status } = await requestCameraPermission();
       setHasPermission(status === 'granted');
     })();
   }, []);
@@ -985,10 +993,26 @@ const VerificationScreen = ({ navigation }) => {
         </Text>
         <TouchableOpacity
           style={styles.button}
-          onPress={() => Camera.requestCameraPermissionsAsync()}
+          onPress={() => {
+            const requestCameraPermission =
+              ExpoCamera.requestCameraPermissionsAsync ||
+              Camera.requestCameraPermissionsAsync;
+            requestCameraPermission();
+          }}
         >
           <Text style={styles.buttonText}>Grant Permission</Text>
         </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (!recordedVideo && !CameraView) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text style={styles.title}>Camera Unavailable</Text>
+        <Text style={styles.subtitle}>
+          This build cannot render the camera view right now. Please update the app build or use file upload instead.
+        </Text>
       </View>
     );
   }
@@ -1011,11 +1035,10 @@ const VerificationScreen = ({ navigation }) => {
         {!recordedVideo ? (
           <>
             <View style={styles.camera}>
-              <Camera
+              <CameraView
                 ref={cameraRef}
                 style={{ flex: 1 }}
-                type={cameraType}
-                ratio="16:9"
+                facing={cameraType}
               />
             </View>
 
@@ -1063,13 +1086,19 @@ const VerificationScreen = ({ navigation }) => {
           </>
         ) : (
           <>
-            <Video
-              source={{ uri: recordedVideo.uri }}
-              style={styles.previewVideo}
-              useNativeControls
-              resizeMode="cover"
-              isLooping
-            />
+            {Video ? (
+              <Video
+                source={{ uri: recordedVideo.uri }}
+                style={styles.previewVideo}
+                useNativeControls
+                resizeMode="cover"
+                isLooping
+              />
+            ) : (
+              <View style={[styles.previewVideo, { justifyContent: 'center', alignItems: 'center' }]}>
+                <Text style={styles.subtitle}>Video preview is unavailable in this build.</Text>
+              </View>
+            )}
 
             <View style={styles.cameraControls}>
               <TouchableOpacity

@@ -10,6 +10,42 @@ try {
 }
 const { Alert } = require('react-native');
 
+const decodeBase64ToArrayBuffer = (base64) => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+  const cleaned = base64.replace(/[^A-Za-z0-9+/=]/g, '');
+  let bufferLength = cleaned.length * 0.75;
+
+  if (cleaned.endsWith('==')) {
+    bufferLength -= 2;
+  } else if (cleaned.endsWith('=')) {
+    bufferLength -= 1;
+  }
+
+  const bytes = new Uint8Array(bufferLength);
+  let byteIndex = 0;
+
+  for (let i = 0; i < cleaned.length; i += 4) {
+    const encoded1 = chars.indexOf(cleaned[i]);
+    const encoded2 = chars.indexOf(cleaned[i + 1]);
+    const encoded3 = chars.indexOf(cleaned[i + 2]);
+    const encoded4 = chars.indexOf(cleaned[i + 3]);
+
+    const chunk = (encoded1 << 18) | (encoded2 << 12) | ((encoded3 & 63) << 6) | (encoded4 & 63);
+
+    bytes[byteIndex++] = (chunk >> 16) & 255;
+
+    if (encoded3 !== 64) {
+      bytes[byteIndex++] = (chunk >> 8) & 255;
+    }
+
+    if (encoded4 !== 64) {
+      bytes[byteIndex++] = chunk & 255;
+    }
+  }
+
+  return bytes.buffer;
+};
+
 /**
  * Picks an image from camera or library
  */
@@ -137,40 +173,25 @@ const uploadMedia = async (uri, bucket, path) => {
       const response = await fetch(uploadUri);
       fileData = await response.blob();
     } else {
-      // For native: Use fetch to get the file as blob
+      // For native: read the local file directly instead of fetch(file://...),
+      // which commonly fails in React Native with "Network request failed".
       console.log('📱 Native platform detected');
-      try {
-        // Method 1: Try using fetch for the file URI
-        const response = await fetch(uploadUri);
-        fileData = await response.blob();
-        console.log('✅ File loaded via fetch');
-      } catch (fetchError) {
-        console.log('⚠️ Fetch failed, trying FileSystem:', fetchError.message);
-        // Method 2: Use FileSystem as fallback
-        const FileSystem = require('expo-file-system').default;
-        const fileInfo = await FileSystem.getInfoAsync(uploadUri);
-        
-        if (!fileInfo.exists) {
-          throw new Error(`File not found: ${uploadUri}`);
-        }
-        
-        // Read file as base64
-        const base64 = await FileSystem.readAsStringAsync(uploadUri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        
-        // Convert base64 to ArrayBuffer
-        const binaryString = atob(base64);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        fileData = bytes.buffer;
-        console.log('✅ File loaded via FileSystem');
+      const FileSystem = require('expo-file-system');
+      const fileInfo = await FileSystem.getInfoAsync(uploadUri);
+
+      if (!fileInfo.exists) {
+        throw new Error(`File not found: ${uploadUri}`);
       }
+
+      const base64 = await FileSystem.readAsStringAsync(uploadUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      fileData = decodeBase64ToArrayBuffer(base64);
+      console.log('✅ File loaded via FileSystem');
     }
 
-    console.log(`📤 Uploading ${fileData.size} bytes to ${bucket}...`);
+    console.log(`📤 Uploading file to ${bucket}...`);
     
     // Upload to Supabase
     const { data, error } = await supabase.storage
@@ -208,6 +229,15 @@ const uploadMedia = async (uri, bucket, path) => {
     return publicUrl;
   } catch (error) {
     console.error('💥 Upload Error:', error);
+    const errorText = error?.message?.toLowerCase?.() || '';
+
+    if (errorText === 'network request failed') {
+      throw new Error(
+        `Upload request to Supabase failed for bucket "${bucket}". ` +
+        'Check device internet access, Supabase URL/key config, and storage RLS policies.'
+      );
+    }
+
     throw error;
   }
 };

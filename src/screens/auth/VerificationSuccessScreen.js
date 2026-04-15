@@ -5,6 +5,16 @@ const { Ionicons } = require('@expo/vector-icons');
 const Colors = require('../../theme/Colors');
 
 const VerificationSuccessScreen = ({ navigation }) => {
+  const handleContinue = () => {
+    const parentNavigation = navigation.getParent?.();
+    if (parentNavigation?.replace) {
+      parentNavigation.replace('Main');
+      return;
+    }
+
+    navigation.navigate('Main');
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
@@ -18,7 +28,7 @@ const VerificationSuccessScreen = ({ navigation }) => {
         </Text>
         <TouchableOpacity 
           style={styles.primaryBtn} 
-          onPress={() => navigation.navigate('Main')}
+          onPress={handleContinue}
         >
           <Text style={styles.primaryBtnText}>Continue to App</Text>
         </TouchableOpacity>

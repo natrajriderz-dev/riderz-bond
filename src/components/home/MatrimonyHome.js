@@ -10,6 +10,7 @@ const {
   FlatList,
   ActivityIndicator,
   Alert,
+  Modal,
 } = require('react-native');
 const { useState, useEffect } = React;
 const { useIsFocused } = require('@react-navigation/native');

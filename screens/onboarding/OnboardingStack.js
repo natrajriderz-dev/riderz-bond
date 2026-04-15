@@ -20,13 +20,47 @@ const ExpoAV = require('expo-av');
 const { useState, useEffect, useRef } = React;
 const AsyncStorage = require('@react-native-async-storage/async-storage').default;
 const axios = require('axios');
-const { pickMedia, compressImage } = require('../../src/utils/mediaUtils');
+const { pickMedia, compressImage, uploadMedia } = require('../../src/utils/mediaUtils');
+const { supabase } = require('../../supabase');
 
 const Camera = ExpoCamera.Camera || ExpoCamera;
 const CameraView = ExpoCamera.CameraView || ExpoCamera.default || null;
 const Video = ExpoAV.Video || ExpoAV.default?.Video || ExpoAV.default || null;
 
 const Stack = createStackNavigator();
+
+const navigateToRootMain = (navigation) => {
+  const parentNavigation = navigation.getParent?.();
+  if (parentNavigation?.replace) {
+    parentNavigation.replace('Main');
+    return;
+  }
+
+  if (parentNavigation?.navigate) {
+    parentNavigation.navigate('Main');
+    return;
+  }
+
+  navigation.navigate('Main');
+};
+
+const markProfileComplete = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { error } = await supabase
+    .from('users')
+    .update({
+      profile_complete: true,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', user.id);
+
+  if (error) throw error;
+
+  await AsyncStorage.setItem('onboarding_complete', 'true');
+  return user;
+};
 
 // Colors
 const colors = {
@@ -950,11 +984,24 @@ const VerificationScreen = ({ navigation }) => {
     }
 
     try {
-      // Upload video and submit for verification
-      console.log('Submitting verification video:', recordedVideo.uri);
-      
-      // Check user mode to determine next screen
-      const userMode = await AsyncStorage.getItem('userMode');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const ext = recordedVideo.uri.split('.').pop() || 'mp4';
+      const filePath = `verifications/${user.id}_${Date.now()}.${ext}`;
+      const mediaUrl = await uploadMedia(recordedVideo.uri, 'verification_media', filePath);
+
+      const { error: requestError } = await supabase
+        .from('verification_requests')
+        .insert({
+          user_id: user.id,
+          media_url: mediaUrl,
+          status: 'pending',
+          created_at: new Date().toISOString(),
+        });
+
+      if (requestError) throw requestError;
+
       const isPremium = await AsyncStorage.getItem('isPremium') === 'true';
       
       if (isPremium) {
@@ -965,7 +1012,17 @@ const VerificationScreen = ({ navigation }) => {
           'Premium Feature',
           'Tribe/Zone selection is a premium feature. Would you like to upgrade?',
           [
-            { text: 'Not Now', onPress: () => navigation.navigate('MainApp') },
+            {
+              text: 'Not Now',
+              onPress: async () => {
+                try {
+                  await markProfileComplete();
+                  navigateToRootMain(navigation);
+                } catch (error) {
+                  Alert.alert('Error', error.message || 'Failed to complete onboarding');
+                }
+              }
+            },
             { text: 'View Plans', onPress: () => console.log('Show premium plans') },
           ]
         );
@@ -1168,7 +1225,38 @@ const TribeZoneSelectScreen = ({ navigation }) => {
 
     try {
       await AsyncStorage.setItem('userTribes', JSON.stringify(selectedItems));
-      navigation.navigate('MainApp');
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const selectedNames = items
+          .filter((item) => selectedItems.includes(item.id))
+          .map((item) => item.name);
+
+        if (selectedNames.length > 0) {
+          const { data: tribeRows, error: tribeLookupError } = await supabase
+            .from('tribes')
+            .select('id, name')
+            .in('name', selectedNames);
+
+          if (tribeLookupError) throw tribeLookupError;
+
+          if (tribeRows?.length) {
+            await supabase.from('user_tribes').delete().eq('user_id', user.id);
+
+            const inserts = tribeRows.map((tribe, index) => ({
+              user_id: user.id,
+              tribe_id: tribe.id,
+              is_primary: index === 0,
+            }));
+
+            const { error: insertError } = await supabase.from('user_tribes').insert(inserts);
+            if (insertError) throw insertError;
+          }
+        }
+      }
+
+      await markProfileComplete();
+      navigateToRootMain(navigation);
     } catch (error) {
       console.error('Save tribes error:', error);
       Alert.alert('Error', 'Failed to save selections');

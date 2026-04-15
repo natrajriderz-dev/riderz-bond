@@ -517,7 +517,7 @@ class FishTrapService {
       const { data, error } = await supabase
         .from('fish_trap_messages')
         .select('*')
-        .eq('conversation_id', interactionId)
+        .eq('interaction_id', interactionId)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
@@ -535,7 +535,7 @@ class FishTrapService {
       const { error } = await supabase
         .from('fish_trap_messages')
         .insert({
-          conversation_id: interactionId,
+          interaction_id: interactionId,
           sender_type: senderType,
           content: originalContent,
           displayed_content: displayedContent,

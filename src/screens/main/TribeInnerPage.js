@@ -97,7 +97,10 @@ const TribeInnerPage = ({ route, navigation }) => {
   };
 
   const renderMember = ({ item }) => (
-    <TouchableOpacity style={styles.memberItem} onPress={() => navigation.navigate('Profile', { userId: item.id })}>
+    <TouchableOpacity
+      style={styles.memberItem}
+      onPress={() => navigation.navigate('MemberProfile', { userId: item.id, fallbackMember: item })}
+    >
       <Image source={{ uri: item.photo || 'https://via.placeholder.com/40' }} style={styles.memberAvatar} />
       <View style={{ flex: 1 }}>
         <Text style={styles.memberName}>{item.name}</Text>

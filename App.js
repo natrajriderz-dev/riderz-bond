@@ -13,6 +13,9 @@ const notificationService = require('./src/services/notificationService');
 const AuthStack = require('./screens/auth/AuthStack');
 const OnboardingStack = require('./screens/onboarding/OnboardingStack');
 const MainTabs = require('./screens/main/MainTabs');
+const PremiumScreen = require('./src/screens/main/PremiumScreen');
+const VideoVerificationScreen = require('./src/screens/auth/VideoVerificationScreen');
+const VerificationSuccessScreen = require('./src/screens/auth/VerificationSuccessScreen');
 
 const Stack = createStackNavigator();
 
@@ -72,6 +75,9 @@ const App = () => {
             <Stack.Screen name="Auth" component={AuthStack} />
             <Stack.Screen name="Onboarding" component={OnboardingStack} />
             <Stack.Screen name="Main" component={MainTabs} />
+            <Stack.Screen name="VideoVerification" component={VideoVerificationScreen} />
+            <Stack.Screen name="VerificationSuccess" component={VerificationSuccessScreen} />
+            <Stack.Screen name="Premium" component={PremiumScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       </ModeProvider>

@@ -15,6 +15,7 @@ const { Ionicons } = require('@expo/vector-icons');
 const AsyncStorage = require('@react-native-async-storage/async-storage').default;
 const { supabase } = require('../../../supabase');
 const { useMode } = require('../../../context/ModeContext');
+const { supabase } = require('../../../supabase');
 const Colors = require('../../theme/Colors');
 const { tribesData } = require('../../utils/constants');
 const TribeCard = require('../../components/tribes/TribeCard');
@@ -66,16 +67,39 @@ const TribesScreen = ({ navigation }) => {
 
   const loadTribes = async () => {
     try {
-      const mappedTribes = tribesData.map(tribe => {
+      const { data, error } = await supabase
+        .from('tribes')
+        .select('id, slug, name, description, icon, category, member_count')
+        .eq('category', userMode)
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+
+      if (data?.length) {
+        setAllTribes(data.map((tribe) => ({
+          id: tribe.id,
+          slug: tribe.slug,
+          name: tribe.name,
+          description: tribe.description,
+          icon: tribe.icon || '✨',
+          member_count: tribe.member_count || 0,
+          category: tribe.category,
+        })));
+        return;
+      }
+
+      const fallback = tribesData.map((tribe) => {
         const modeData = userMode === 'dating' ? tribe.dating : tribe.matrimony;
         return {
           id: tribe.id,
+          slug: tribe.id,
           ...modeData,
           icon: tribe.icon,
           member_count: Math.floor(Math.random() * 100) + 20,
+          category: userMode,
         };
       });
-      setAllTribes(mappedTribes);
+      setAllTribes(fallback);
     } finally {
       setLoading(false);
     }

@@ -15,7 +15,7 @@ const {
   Platform
 } = require('react-native');
 const { createStackNavigator } = require('@react-navigation/stack');
-const { Camera, CameraType } = require('expo-camera');
+const { Camera } = require('expo-camera');
 const { useState, useEffect, useRef } = React;
 const AsyncStorage = require('@react-native-async-storage/async-storage').default;
 const axios = require('axios');
@@ -867,7 +867,7 @@ const MatrimonyProfileScreen = ({ navigation }) => {
 // Verification Screen
 const VerificationScreen = ({ navigation }) => {
   const [hasPermission, setHasPermission] = useState(null);
-  const [cameraType, setCameraType] = useState(CameraType.front);
+  const [cameraType, setCameraType] = useState('front');
   const [isRecording, setIsRecording] = useState(false);
   const [recordedVideo, setRecordedVideo] = useState(null);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -1023,7 +1023,7 @@ const VerificationScreen = ({ navigation }) => {
               <TouchableOpacity
                 style={styles.flipButton}
                 onPress={() => setCameraType(
-                  cameraType === CameraType.front ? CameraType.back : CameraType.front
+                  cameraType === 'front' ? 'back' : 'front'
                 )}
               >
                 <Text style={{ fontSize: 24 }}>🔄</Text>

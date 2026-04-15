@@ -1,13 +1,13 @@
 // src/components/video/CameraCapture.js
 const React = require('react');
 const { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } = require('react-native');
-const { Camera, CameraType } = require('expo-camera');
+const { Camera } = require('expo-camera');
 const { Ionicons } = require('@expo/vector-icons');
 const Colors = require('../../theme/Colors');
 
 const CameraCapture = ({ onCapture, type = 'front', instruction = 'Align your face in the oval' }) => {
   const [hasPermission, setHasPermission] = React.useState(null);
-  const [cameraType, setCameraType] = React.useState(type === 'front' ? CameraType.front : CameraType.back);
+  const [cameraType, setCameraType] = React.useState(type === 'front' ? 'front' : 'back');
   const [isReady, setIsReady] = React.useState(false);
   const [isRecording, setIsRecording] = React.useState(false);
   const cameraRef = React.useRef(null);

@@ -16,9 +16,11 @@
       "supportsTablet": true,
       "infoPlist": {
         "UIBackgroundModes": [
+          "remote-notification",
           "remote-notification"
         ],
-        "NSUserNotificationsUsageDescription": "This app uses notifications to alert you about new matches, messages, and important updates."
+        "NSUserNotificationsUsageDescription": "This app uses notifications to alert you about new matches, messages, and important updates.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -40,6 +42,9 @@
       "eas": {
         "projectId": "9d03b1ff-0a7c-45a0-ae70-01d4dfe84719"
       }
-    }
+    },
+    "plugins": [
+      "@react-native-community/datetimepicker"
+    ]
   }
 }

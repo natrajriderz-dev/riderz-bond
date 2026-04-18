@@ -20,11 +20,10 @@ const { createStackNavigator } = require('@react-navigation/stack');
 const { useState, useEffect, useRef } = React;
 const AsyncStorage = require('@react-native-async-storage/async-storage').default;
 const axios = require('axios');
-const ImagePicker = require('expo-image-picker');
 const { Ionicons } = require('@expo/vector-icons');
 const { LinearGradient } = require('expo-linear-gradient');
 const { supabase } = require('../../supabase');
-const { uploadMedia } = require('../../src/utils/mediaUtils');
+const { uploadMedia, pickMedia } = require('../../src/utils/mediaUtils');
 const moderationService = require('../../src/services/moderationService');
 const deepfakeDetectionService = require('../../src/services/deepfakeDetectionService');
 
@@ -899,7 +898,7 @@ const ProfileScreen = ({ navigation }) => {
               <Image source={{ uri: photo }} style={styles.profileImage} />
             </View>
           ))}
-          {(!profile?.photos || profile.photos.length < 3) && (
+          {(!profile?.photos || profile.photos.length < 1) && (
             <View style={styles.photoItem}>
               <View style={[styles.profileImage, { backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' }]}>
                 <Ionicons name="camera" size={24} color={colors.textSecondary} />
@@ -1088,38 +1087,11 @@ const EditProfileScreen = ({ navigation }) => {
 
   const pickImage = async (index) => {
     try {
-      // For web, use file input
-      if (Platform.OS === 'web') {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/*';
-        input.onchange = async (e) => {
-          const file = e.target.files[0];
-          if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-              const newPhotos = [...photos];
-              newPhotos[index] = event.target.result;
-              setPhotos(newPhotos);
-            };
-            reader.readAsDataURL(file);
-          }
-        };
-        input.click();
-      } else {
-        // For native, use ImagePicker
-        const result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          allowsEditing: true,
-          aspect: [1, 1],
-          quality: 0.8,
-        });
-
-        if (!result.canceled) {
-          const newPhotos = [...photos];
-          newPhotos[index] = result.assets[0].uri;
-          setPhotos(newPhotos);
-        }
+      const result = await pickMedia('library', true, 'image');
+      if (result?.uri) {
+        const newPhotos = [...photos];
+        newPhotos[index] = result.uri;
+        setPhotos(newPhotos);
       }
     } catch (error) {
       console.error('Pick image error:', error);
@@ -1169,11 +1141,26 @@ const EditProfileScreen = ({ navigation }) => {
       const [primaryPhoto, ...additionalPhotos] = uploadedPhotos.filter(Boolean);
 
       // Update users table
-      await supabase.from('users').update({
+      await supabase.from('users').upsert({
+        id: user.id,
+        email: user.email,
         full_name: displayName,
         bio,
         city,
-      }).eq('id', user.id);
+      }, {
+        onConflict: 'id'
+      });
+
+      // Verify user row exists before creating profile
+      const { data: verifyUser, error: verifyError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', user.id)
+        .single();
+
+      if (verifyError || !verifyUser) {
+        throw new Error('User record not found after upsert — cannot update profile');
+      }
 
       // Upsert user_profiles table
       await supabase.from('user_profiles').upsert({

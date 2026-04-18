@@ -3,7 +3,7 @@ const React = require('react');
 const { NavigationContainer } = require('@react-navigation/native');
 const { createStackNavigator } = require('@react-navigation/stack');
 const { useEffect, useState } = React;
-const { View, ActivityIndicator } = require('react-native');
+const { View, ActivityIndicator, LogBox } = require('react-native');
 const { supabase } = require('./supabase');
 const { ModeProvider } = require('./context/ModeContext');
 const ErrorBoundary = require('./src/components/shared/ErrorBoundary');
@@ -19,6 +19,10 @@ const VideoVerificationScreen = require('./src/screens/auth/VideoVerificationScr
 const VerificationSuccessScreen = require('./src/screens/auth/VerificationSuccessScreen');
 
 const Stack = createStackNavigator();
+
+LogBox.ignoreLogs([
+  'Method getInfoAsync imported from "expo-file-system" is deprecated.',
+]);
 
 const App = () => {
   const [loading, setLoading] = useState(true);

@@ -69,6 +69,12 @@ BEGIN
     COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email,'@',1))
   )
   ON CONFLICT (id) DO NOTHING;
+
+  -- Ensure user_profiles row exists for foreign key constraints
+  INSERT INTO public.user_profiles (user_id)
+  VALUES (NEW.id)
+  ON CONFLICT (user_id) DO NOTHING;
+
   RETURN NEW;
 END;
 $$;
@@ -110,6 +116,13 @@ CREATE POLICY "Users manage own profile"
   TO authenticated
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
+
+-- Allow trigger to insert initial user_profiles row (auth.uid() IS NULL)
+DROP POLICY IF EXISTS "Trigger can insert initial profile" ON public.user_profiles;
+CREATE POLICY "Trigger can insert initial profile"
+  ON public.user_profiles FOR INSERT
+  TO public
+  WITH CHECK (auth.uid() IS NULL);
 
 -- ── 3. user_actions (swipe events) ────────────────────────
 CREATE TABLE IF NOT EXISTS public.user_actions (

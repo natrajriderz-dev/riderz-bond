@@ -3,11 +3,12 @@
 -- Create suyamvaram_challenges table
 CREATE TABLE IF NOT EXISTS public.suyamvaram_challenges (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    creator_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    creator_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
     description TEXT NOT NULL,
     challenge_type TEXT NOT NULL,
     max_participants INTEGER DEFAULT 50,
+    participant_count INT DEFAULT 0,
     deadline TIMESTAMP WITH TIME ZONE NOT NULL,
     reward TEXT NOT NULL,
     status TEXT DEFAULT 'active', -- active, completed, cancelled
@@ -38,7 +39,7 @@ CREATE POLICY "Creators can update their own challenges"
 CREATE TABLE IF NOT EXISTS public.suyamvaram_applications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     challenge_id UUID REFERENCES public.suyamvaram_challenges(id) ON DELETE CASCADE,
-    applicant_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    applicant_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
     status TEXT DEFAULT 'pending', -- pending, accepted, rejected
     applied_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(challenge_id, applicant_id)
@@ -61,3 +62,9 @@ DROP POLICY IF EXISTS "Users can apply to challenges" ON public.suyamvaram_appli
 CREATE POLICY "Users can apply to challenges"
     ON public.suyamvaram_applications FOR INSERT
     WITH CHECK (auth.uid() = applicant_id);
+
+DROP POLICY IF EXISTS "Creators can update application status" ON public.suyamvaram_applications;
+CREATE POLICY "Creators can update application status"
+    ON public.suyamvaram_applications FOR UPDATE
+    TO authenticated
+    USING (auth.uid() IN (SELECT creator_id FROM public.suyamvaram_challenges WHERE id = challenge_id));

@@ -623,8 +623,8 @@ const DatingProfileScreen = ({ navigation }) => {
   };
 
   const handleContinue = async () => {
-    if (!bio || !occupation || !lookingFor || photos.filter(p => p).length < 3) {
-      Alert.alert('Incomplete', 'Please fill all fields and upload at least 3 photos');
+    if (!bio || !occupation || !lookingFor || photos.filter(p => p).length < 1) {
+      Alert.alert('Incomplete', 'Please fill all fields and upload at least 1 photo');
       return;
     }
 
@@ -729,7 +729,7 @@ const DatingProfileScreen = ({ navigation }) => {
           ))}
         </View>
 
-        <Text style={styles.inputLabel}>Profile Photos (Minimum 3)</Text>
+        <Text style={styles.inputLabel}>Profile Photos (Minimum 1)</Text>
         <View style={styles.photoGrid}>
           {photos.map((photo, index) => (
             <TouchableOpacity

@@ -9,6 +9,7 @@ const {
   Alert,
   ActivityIndicator,
   Image,
+  Platform,
 } = require('react-native');
 const { useState } = React;
 const AsyncStorage = require('@react-native-async-storage/async-storage').default;
@@ -16,14 +17,37 @@ const { supabase } = require('../../../supabase');
 const AuthStyles = require('./AuthStyles');
 const Colors = require('../../theme/Colors');
 const { pickMedia, compressImage, uploadMedia } = require('../../utils/mediaUtils');
+let DateTimePicker;
+try {
+  DateTimePicker = require('@react-native-community/datetimepicker').default;
+} catch (e) {
+  DateTimePicker = null;
+}
+
+const formatDobDisplay = (date) => {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = String(date.getFullYear());
+  return `${day}/${month}/${year}`;
+};
+
+const toIsoDate = (date) => {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = String(date.getFullYear());
+  return `${year}-${month}-${day}`;
+};
 
 const normalizeDateOfBirth = (value) => {
   const raw = (value || '').trim();
   if (!raw) return null;
 
+  // Accept common separators users type on mobile keyboards.
+  const normalizedInput = raw.replace(/[.\-]/g, '/');
+
   // Already ISO-like: YYYY-MM-DD
   const isoPattern = /^(\d{4})-(\d{2})-(\d{2})$/;
-  const isoMatch = raw.match(isoPattern);
+  const isoMatch = normalizedInput.match(isoPattern);
   if (isoMatch) {
     const [, y, m, d] = isoMatch;
     const parsed = new Date(`${y}-${m}-${d}T00:00:00Z`);
@@ -33,7 +57,7 @@ const normalizeDateOfBirth = (value) => {
 
   // UI format: DD/MM/YYYY
   const dmyPattern = /^(\d{2})\/(\d{2})\/(\d{4})$/;
-  const dmyMatch = raw.match(dmyPattern);
+  const dmyMatch = normalizedInput.match(dmyPattern);
   if (!dmyMatch) return null;
 
   const [, dd, mm, yyyy] = dmyMatch;
@@ -62,8 +86,25 @@ const BasicInfoScreen = ({ navigation, route }) => {
   const [gender, setGender] = useState('');
   const [city, setCity] = useState('');
   const [photo, setPhoto] = useState(null);
+  const [dobDate, setDobDate] = useState(null);
+  const [showDobPicker, setShowDobPicker] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [warning, setWarning] = useState('');
+
+  const handleDobChange = (_event, selectedDate) => {
+    if (Platform.OS !== 'ios') {
+      setShowDobPicker(false);
+    }
+
+    if (!selectedDate) {
+      return;
+    }
+
+    setDobDate(selectedDate);
+    setDob(formatDobDisplay(selectedDate));
+    setError('');
+  };
 
   const handlePhotoAction = async (source) => {
     const result = await pickMedia(source);
@@ -93,14 +134,15 @@ const BasicInfoScreen = ({ navigation, route }) => {
       return;
     }
 
-    const normalizedDob = normalizeDateOfBirth(dob);
+    const normalizedDob = dobDate ? toIsoDate(dobDate) : normalizeDateOfBirth(dob);
     if (!normalizedDob) {
-      setError('Date of birth must be in DD/MM/YYYY format');
+      setError('Please select a valid date of birth');
       return;
     }
 
     setLoading(true);
     setError('');
+    setWarning('');
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -109,35 +151,55 @@ const BasicInfoScreen = ({ navigation, route }) => {
       // Upload compressed photo
       const fileName = `profile_${user.id}_${Date.now()}.jpg`;
       const filePath = `${user.id}/${fileName}`;
-      const photoUrl = await uploadMedia(photo.uri, 'avatars', filePath);
-
-      if (!photoUrl) throw new Error('Failed to upload photo');
+      let photoUrl = null;
+      try {
+        photoUrl = await uploadMedia(photo.uri, 'avatars', filePath);
+      } catch (uploadError) {
+        console.error('Photo upload failed, continuing onboarding without remote avatar:', uploadError);
+        setWarning('Photo upload failed due to network/storage permissions. Profile was saved; you can re-upload photo from Profile later.');
+      }
 
       // Update basic user info
       const { error: userError } = await supabase
         .from('users')
-        .update({
+        .upsert({
+          id: user.id,
+          email: user.email,
           full_name: fullName.trim(),
           date_of_birth: normalizedDob,
           gender: gender.toLowerCase(),
           city: city.trim(),
           profile_complete: true
-        })
-        .eq('id', user.id);
+        }, {
+          onConflict: 'id'
+        });
 
       if (userError) throw userError;
 
-      // Update profile with photo
-      const { error: profileError } = await supabase
-        .from('user_profiles')
-        .upsert({
-          user_id: user.id,
-          primary_photo_url: photoUrl
-        }, {
-          onConflict: 'user_id'
-        });
+      // Verify user row exists before creating profile
+      const { data: verifyUser, error: verifyError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', user.id)
+        .single();
 
-      if (profileError) throw profileError;
+      if (verifyError || !verifyUser) {
+        throw new Error('User record not found after upsert — cannot create profile');
+      }
+
+      // Update profile with photo
+      if (photoUrl) {
+        const { error: profileError } = await supabase
+          .from('user_profiles')
+          .upsert({
+            user_id: user.id,
+            primary_photo_url: photoUrl
+          }, {
+            onConflict: 'user_id'
+          });
+
+        if (profileError) throw profileError;
+      }
 
       await AsyncStorage.setItem('onboarding_complete', 'true');
       const parentNavigation = navigation.getParent?.();
@@ -181,7 +243,38 @@ const BasicInfoScreen = ({ navigation, route }) => {
       <TextInput style={AuthStyles.input} value={fullName} onChangeText={setFullName} placeholder="Enter your full name" placeholderTextColor={Colors.textSecondary} />
 
       <Text style={AuthStyles.inputLabel}>Date of Birth</Text>
-      <TextInput style={AuthStyles.input} value={dob} onChangeText={setDob} placeholder="DD/MM/YYYY" placeholderTextColor={Colors.textSecondary} keyboardType="number-pad" />
+      {DateTimePicker ? (
+        <>
+          <TouchableOpacity
+            style={[AuthStyles.input, { justifyContent: 'center' }]}
+            onPress={() => setShowDobPicker(true)}
+          >
+            <Text style={{ color: dob ? Colors.text : Colors.textSecondary, fontSize: 16 }}>
+              {dob || 'Select date of birth'}
+            </Text>
+          </TouchableOpacity>
+
+          {showDobPicker ? (
+            <DateTimePicker
+              value={dobDate || new Date(2000, 0, 1)}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              onChange={handleDobChange}
+              maximumDate={new Date()}
+              minimumDate={new Date(1900, 0, 1)}
+            />
+          ) : null}
+        </>
+      ) : (
+        <TextInput
+          style={AuthStyles.input}
+          value={dob}
+          onChangeText={setDob}
+          placeholder="DD/MM/YYYY"
+          placeholderTextColor={Colors.textSecondary}
+          keyboardType="number-pad"
+        />
+      )}
 
       <Text style={AuthStyles.inputLabel}>Gender</Text>
       <View style={AuthStyles.row}>
@@ -196,6 +289,7 @@ const BasicInfoScreen = ({ navigation, route }) => {
       <TextInput style={AuthStyles.input} value={city} onChangeText={setCity} placeholder="Enter your city" placeholderTextColor={Colors.textSecondary} />
 
       {error ? <Text style={AuthStyles.errorText}>{error}</Text> : null}
+      {warning ? <Text style={[AuthStyles.errorText, { color: '#F59E0B' }]}>{warning}</Text> : null}
       
       <TouchableOpacity testID="complete-registration-button" style={[AuthStyles.button, { marginTop: 32 }]} onPress={handleSubmit} disabled={loading}>
         <Text style={AuthStyles.buttonText}>{loading ? 'Saving...' : 'Complete Registration'}</Text>

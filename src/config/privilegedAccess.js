@@ -1,10 +1,29 @@
-const OWNER_UID = '31080697-96d9-4d5f-9884-a8eef2acd4ad';
+const { supabase } = require('../../supabase');
 
+async function checkIsAdmin(userId) {
+  if (!userId) return false;
+  try {
+    const { data, error } = await supabase
+      .from('admin_users')
+      .select('role')
+      .eq('user_id', userId)
+      .single();
+    
+    if (error || !data) return false;
+    return true;
+  } catch (err) {
+    console.error('Error checking admin status:', err);
+    return false;
+  }
+}
+
+// Kept for backward compatibility to prevent crashes, but will return false.
+// New code must use checkIsAdmin.
 function isOwnerUser(userId) {
-  return Boolean(userId) && userId === OWNER_UID;
+  return false;
 }
 
 module.exports = {
-  OWNER_UID,
+  checkIsAdmin,
   isOwnerUser,
 };

@@ -22,7 +22,7 @@ const MainTabs = () => {
   const isAdminMode = activeMode === 'admin' && isPrivilegedOwner;
 
   // Branding Colors matching the guide
-  const activeColor = isAdminMode ? '#0f766e' : (userMode === 'matrimony' ? '#D4A017' : '#E91E63'); // Teal for Admin
+  const activeColor = isAdminMode ? '#0f766e' : (activeMode === 'matrimony' ? '#D4A017' : '#E91E63'); // Teal for Admin
   const inactiveColor = '#8E8E93';
 
   return (

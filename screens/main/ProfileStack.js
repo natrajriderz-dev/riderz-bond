@@ -139,6 +139,144 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  // Premium Redesign Styles
+  premiumPhotoSection: {
+    width: width,
+    height: width * 1.2,
+    position: 'relative',
+  },
+  premiumMainPhoto: {
+    width: width,
+    height: width * 1.2,
+    resizeMode: 'cover',
+  },
+  photoGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 150,
+  },
+  photoPaging: {
+    position: 'absolute',
+    bottom: 20,
+    flexDirection: 'row',
+    alignSelf: 'center',
+  },
+  pagingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginHorizontal: 3,
+  },
+  premiumInfoCard: {
+    marginTop: -30,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingTop: 24,
+    paddingHorizontal: 0,
+    minHeight: 500,
+  },
+  warningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    margin: 16,
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+  },
+  warningIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  warningTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  warningSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  completionContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  completionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  completionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1C1C1E',
+  },
+  completionPercentage: {
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  completionBarBackground: {
+    height: 6,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  completionBarFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  detailsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 20,
+    marginBottom: 20,
+    gap: 12,
+  },
+  detailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  detailText: {
+    fontSize: 13,
+    color: '#4B5563',
+    marginLeft: 6,
+    fontWeight: '500',
+  },
+  tagsSection: {
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  tagsTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1C1C1E',
+    marginBottom: 12,
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  tag: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  tagText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
   addPhotoIcon: {
     width: 40,
     height: 40,
@@ -733,6 +871,20 @@ const ProfileScreen = ({ navigation }) => {
     likes: 0,
     views: 0
   });
+  const [completionPercentage, setCompletionPercentage] = useState(0);
+
+  const calculateCompletion = (profileData, userData) => {
+    let score = 0;
+    let total = 6;
+    if (userData?.full_name) score++;
+    if (userData?.bio) score++;
+    if (userData?.city) score++;
+    if (profileData?.occupation) score++;
+    if (profileData?.primary_photo_url) score++;
+    if (profileData?.additional_photos?.length > 0) score++;
+    
+    return Math.round((score / total) * 100);
+  };
 
   useEffect(() => {
     loadProfile();
@@ -768,15 +920,22 @@ const ProfileScreen = ({ navigation }) => {
             ? [profileData.primary_photo_url, ...(profileData.additional_photos || [])].filter(Boolean)
             : [],
           occupation: profileData?.occupation || '',
+          interests: profileData?.interests || [],
+          hobbies: profileData?.hobbies || [],
+          languages: profileData?.languages || [],
+          height: profileData?.height || '',
         });
         setIsPremium(isPrivilegedOwner ? true : isPremiumActive);
         setTrustLevel(userData.trust_level || 'unverified');
+        setCompletionPercentage(calculateCompletion(profileData, userData));
+        
         // Persist minimal copy for other screens
         await AsyncStorage.setItem('userData', JSON.stringify({
           display_name: userData.full_name,
           city: userData.city,
           trust_level: userData.trust_level,
           profile_picture_url: profileData?.primary_photo_url || null,
+          is_verified: userData.is_verified || false,
         }));
       } else {
         // Fallback to AsyncStorage cache while DB is being set up
@@ -865,10 +1024,8 @@ const ProfileScreen = ({ navigation }) => {
     );
   }
 
-  // Show fish trap for unverified users
-  if (trustLevel === 'unverified') {
-    return <FishTrapProfileScreen navigation={navigation} />;
-  }
+  // Show premium UI
+  const isUnverified = trustLevel === 'unverified' || trustLevel === 'pending';
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -890,22 +1047,64 @@ const ProfileScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        {/* Profile Photos */}
-        <View style={styles.profilePhotosGrid}>
-          {profile?.photos?.slice(0, 3).map((photo, index) => (
-            <View key={index} style={styles.photoItem}>
-              <Image source={{ uri: photo }} style={styles.profileImage} />
+      <ScrollView 
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Verification Warning for Unverified Users */}
+        {isUnverified && (
+          <TouchableOpacity 
+            style={[styles.warningBanner, { backgroundColor: colors.primary + '15' }]}
+            onPress={() => navigation.navigate('Verification')}
+          >
+            <View style={[styles.warningIcon, { backgroundColor: colors.primary }]}>
+              <Ionicons name="shield-alert" size={20} color="#fff" />
             </View>
-          ))}
-          {(!profile?.photos || profile.photos.length < 1) && (
-            <View style={styles.photoItem}>
-              <View style={[styles.profileImage, { backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' }]}>
-                <Ionicons name="camera" size={24} color={colors.textSecondary} />
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={[styles.warningTitle, { color: colors.primary }]}>Verification Pending</Text>
+              <Text style={styles.warningSubtitle}>Verify your profile to boost visibility & trust</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.primary} />
+          </TouchableOpacity>
+        )}
+
+        {/* Profile Photos with Gradient Overlay */}
+        <View style={styles.premiumPhotoSection}>
+          <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}>
+            {profile?.photos?.length > 0 ? (
+              profile.photos.map((photo, index) => (
+                <View key={index} style={{ width: width }}>
+                  <Image source={{ uri: photo }} style={styles.premiumMainPhoto} />
+                </View>
+              ))
+            ) : (
+              <View style={[styles.premiumMainPhoto, { backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center', width: width }]}>
+                <Ionicons name="camera" size={60} color={colors.textMuted} />
               </View>
-            </View>
-          )}
+            )}
+          </ScrollView>
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.8)']}
+            style={styles.photoGradient}
+          />
+          <View style={styles.photoPaging}>
+            {profile?.photos?.map((_, i) => (
+              <View key={i} style={[styles.pagingDot, { backgroundColor: i === 0 ? colors.primary : 'rgba(255,255,255,0.5)' }]} />
+            ))}
+          </View>
         </View>
+
+        {/* Profile Info Card */}
+        <View style={styles.premiumInfoCard}>
+          <View style={styles.completionContainer}>
+            <View style={styles.completionHeader}>
+              <Text style={styles.completionText}>Profile Strength</Text>
+              <Text style={[styles.completionPercentage, { color: colors.primary }]}>{completionPercentage}%</Text>
+            </View>
+            <View style={styles.completionBarBackground}>
+              <View style={[styles.completionBarFill, { width: `${completionPercentage}%`, backgroundColor: colors.primary }]} />
+            </View>
+          </View>
 
         {/* Profile Info */}
         <View style={styles.profileInfo}>
@@ -982,6 +1181,55 @@ const ProfileScreen = ({ navigation }) => {
             </Text>
           </View>
 
+          {/* Detailed Info */}
+          <View style={styles.detailsGrid}>
+            {profile?.occupation ? (
+              <View style={styles.detailItem}>
+                <Ionicons name="briefcase-outline" size={18} color={colors.primary} />
+                <Text style={styles.detailText}>{profile.occupation}</Text>
+              </View>
+            ) : null}
+            {profile?.height ? (
+              <View style={styles.detailItem}>
+                <Ionicons name="resize-outline" size={18} color={colors.primary} />
+                <Text style={styles.detailText}>{profile.height}</Text>
+              </View>
+            ) : null}
+            {profile?.languages?.length > 0 ? (
+              <View style={styles.detailItem}>
+                <Ionicons name="language-outline" size={18} color={colors.primary} />
+                <Text style={styles.detailText}>{profile.languages.join(', ')}</Text>
+              </View>
+            ) : null}
+          </View>
+
+          {/* Interests & Hobbies Tags */}
+          {profile?.interests?.length > 0 && (
+            <View style={styles.tagsSection}>
+              <Text style={styles.tagsTitle}>Interests</Text>
+              <View style={styles.tagsContainer}>
+                {profile.interests.map((item, idx) => (
+                  <View key={idx} style={[styles.tag, { backgroundColor: colors.primary + '10' }]}>
+                    <Text style={[styles.tagText, { color: colors.primary }]}>{item}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {profile?.hobbies?.length > 0 && (
+            <View style={styles.tagsSection}>
+              <Text style={styles.tagsTitle}>Hobbies</Text>
+              <View style={styles.tagsContainer}>
+                {profile.hobbies.map((item, idx) => (
+                  <View key={idx} style={[styles.tag, { backgroundColor: colors.primary + '10' }]}>
+                    <Text style={[styles.tagText, { color: colors.primary }]}>{item}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
           {/* Stats */}
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>
@@ -1034,6 +1282,10 @@ const EditProfileScreen = ({ navigation }) => {
   const [occupation, setOccupation] = useState('');
   const [city, setCity] = useState('');
   const [photos, setPhotos] = useState([]);
+  const [interests, setInterests] = useState('');
+  const [hobbies, setHobbies] = useState('');
+  const [languages, setLanguages] = useState('');
+  const [height, setHeight] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -1069,6 +1321,10 @@ const EditProfileScreen = ({ navigation }) => {
           ...(profileData.additional_photos || [])
         ].filter(Boolean);
         setPhotos(allPhotos);
+        setInterests(profileData.interests?.join(', ') || '');
+        setHobbies(profileData.hobbies?.join(', ') || '');
+        setLanguages(profileData.languages?.join(', ') || '');
+        setHeight(profileData.height || '');
       }
     } catch (error) {
       console.error('Load profile error:', error);
@@ -1168,6 +1424,10 @@ const EditProfileScreen = ({ navigation }) => {
         primary_photo_url: primaryPhoto || null,
         additional_photos: additionalPhotos,
         occupation,
+        interests: interests.split(',').map(i => i.trim()).filter(Boolean),
+        hobbies: hobbies.split(',').map(i => i.trim()).filter(Boolean),
+        languages: languages.split(',').map(i => i.trim()).filter(Boolean),
+        height,
       }, { onConflict: 'user_id' });
 
       // Safety scan for profile photos: deepfake + sexual imagery detection
@@ -1290,6 +1550,46 @@ const EditProfileScreen = ({ navigation }) => {
           placeholderTextColor={colors.textSecondary}
         />
 
+        {/* Interests */}
+        <Text style={styles.inputLabel}>Interests (comma separated)</Text>
+        <TextInput
+          style={styles.input}
+          value={interests}
+          onChangeText={setInterests}
+          placeholder="e.g. Travel, Music, Tech"
+          placeholderTextColor={colors.textSecondary}
+        />
+
+        {/* Hobbies */}
+        <Text style={styles.inputLabel}>Hobbies</Text>
+        <TextInput
+          style={styles.input}
+          value={hobbies}
+          onChangeText={setHobbies}
+          placeholder="e.g. Reading, Swimming"
+          placeholderTextColor={colors.textSecondary}
+        />
+
+        {/* Languages */}
+        <Text style={styles.inputLabel}>Languages</Text>
+        <TextInput
+          style={styles.input}
+          value={languages}
+          onChangeText={setLanguages}
+          placeholder="e.g. English, Tamil, Hindi"
+          placeholderTextColor={colors.textSecondary}
+        />
+
+        {/* Height */}
+        <Text style={styles.inputLabel}>Height</Text>
+        <TextInput
+          style={styles.input}
+          value={height}
+          onChangeText={setHeight}
+          placeholder="e.g. 5'8\""
+          placeholderTextColor={colors.textSecondary}
+        />
+
         {/* Save Button */}
         <TouchableOpacity
           style={styles.saveButton}
@@ -1356,6 +1656,23 @@ const SettingsScreen = ({ navigation }) => {
 
   const handleDeleteAccount = () => {
     setShowDeleteModal(true);
+  };
+
+  const handleResetPassword = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.email) return;
+
+      const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+        redirectTo: 'suyavaraa://reset-password',
+      });
+
+      if (error) throw error;
+      Alert.alert('Email Sent', 'A password reset link has been sent to your email.');
+    } catch (error) {
+      console.error('Reset password error:', error);
+      Alert.alert('Error', 'Failed to send reset email.');
+    }
   };
 
   const confirmDelete = () => {
@@ -1503,6 +1820,14 @@ const SettingsScreen = ({ navigation }) => {
               <Text style={styles.settingsItemValue}>Free</Text>
               <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
             </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.settingsItem} onPress={handleResetPassword}>
+            <View style={styles.settingsItemLeft}>
+              <Ionicons name="lock-open" size={20} color={colors.textSecondary} />
+              <Text style={styles.settingsItemText}>Reset Password</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
 

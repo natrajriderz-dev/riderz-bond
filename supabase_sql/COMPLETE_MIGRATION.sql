@@ -29,6 +29,7 @@ RETURNS BOOLEAN
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
+SET search_path = public
 AS $$
   SELECT EXISTS (
     SELECT 1
@@ -42,7 +43,6 @@ $$;
 -- PART 2: Core User Tables
 -- ============================================
 
--- Main users table (aligned with all migrations)
 CREATE TABLE IF NOT EXISTS public.users (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   full_name TEXT,
@@ -67,7 +67,6 @@ CREATE TABLE IF NOT EXISTS public.users (
 
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
--- User RLS policies
 DROP POLICY IF EXISTS "Users can view profiles" ON public.users;
 CREATE POLICY "Users can view profiles"
   ON public.users FOR SELECT
@@ -81,11 +80,11 @@ CREATE POLICY "Users can update own row"
   USING (auth.uid() = id)
   WITH CHECK (auth.uid() = id);
 
+-- FIX 2: Removed TO authenticated, added OR auth.uid() IS NULL for trigger context
 DROP POLICY IF EXISTS "Users can insert own row" ON public.users;
 CREATE POLICY "Users can insert own row"
   ON public.users FOR INSERT
-  TO authenticated
-  WITH CHECK (auth.uid() = id);
+  WITH CHECK (auth.uid() = id OR auth.uid() IS NULL);
 
 DROP POLICY IF EXISTS "Admins can manage users" ON public.users;
 CREATE POLICY "Admins can manage users"
@@ -94,11 +93,12 @@ CREATE POLICY "Admins can manage users"
   USING (public.is_admin())
   WITH CHECK (public.is_admin());
 
--- Auto-create user row on sign-up
+-- FIX 1: handle_new_user with SET search_path, user_profiles insert, and EXCEPTION block
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
   INSERT INTO public.users (id, email, full_name)
@@ -108,7 +108,16 @@ BEGIN
     COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email,'@',1))
   )
   ON CONFLICT (id) DO NOTHING;
+
+  INSERT INTO public.user_profiles (user_id)
+  VALUES (NEW.id)
+  ON CONFLICT (user_id) DO NOTHING;
+
   RETURN NEW;
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE WARNING 'handle_new_user failed: %', SQLERRM;
+    RETURN NEW;
 END;
 $$;
 
@@ -150,11 +159,17 @@ CREATE POLICY "Users manage own profile"
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
+-- FIX 3: Allow trigger to insert initial user_profiles row
+DROP POLICY IF EXISTS "Trigger can insert initial profile" ON public.user_profiles;
+CREATE POLICY "Trigger can insert initial profile"
+  ON public.user_profiles FOR INSERT
+  TO public
+  WITH CHECK (auth.uid() IS NULL);
+
 -- ============================================
 -- PART 3: Dating/Matching Core Tables
 -- ============================================
 
--- User actions (swipes)
 CREATE TABLE IF NOT EXISTS public.user_actions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   actor_user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
@@ -176,7 +191,6 @@ CREATE POLICY "Users manage own actions"
   USING (auth.uid() = actor_user_id)
   WITH CHECK (auth.uid() = actor_user_id);
 
--- Matches
 CREATE TABLE IF NOT EXISTS public.matches (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user1_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
@@ -202,7 +216,6 @@ CREATE POLICY "Users can create matches"
   TO authenticated
   WITH CHECK (auth.uid() = user1_id OR auth.uid() = user2_id);
 
--- Messages
 CREATE TABLE IF NOT EXISTS public.messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   match_id UUID NOT NULL REFERENCES public.matches(id) ON DELETE CASCADE,
@@ -248,7 +261,6 @@ CREATE POLICY "Match participants can send messages"
 -- PART 4: Posts & Social Features
 -- ============================================
 
--- Posts (Impress feed)
 CREATE TABLE IF NOT EXISTS public.posts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
@@ -284,7 +296,6 @@ CREATE POLICY "Users manage own posts"
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
--- Post reactions
 CREATE TABLE IF NOT EXISTS public.post_reactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   post_id UUID NOT NULL REFERENCES public.posts(id) ON DELETE CASCADE,
@@ -315,7 +326,6 @@ CREATE POLICY "Users manage own reactions"
 -- PART 5: Tribes System
 -- ============================================
 
--- Tribes table (for both dating and matrimony modes)
 CREATE TABLE IF NOT EXISTS public.tribes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   slug TEXT UNIQUE,
@@ -330,7 +340,6 @@ CREATE TABLE IF NOT EXISTS public.tribes (
 
 CREATE UNIQUE INDEX IF NOT EXISTS tribes_slug_key ON public.tribes(slug);
 
--- Seed tribes (idempotent)
 INSERT INTO public.tribes (slug, name, description, icon, category, member_count)
 VALUES
   ('adventure-seekers', 'Adventure Seekers', 'Love hiking, travel, and outdoor activities', '🏔️', 'dating', 0),
@@ -356,7 +365,6 @@ SET
   icon = EXCLUDED.icon,
   category = EXCLUDED.category;
 
--- User tribes association
 CREATE TABLE IF NOT EXISTS public.user_tribes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -396,7 +404,6 @@ CREATE POLICY "Admins can view all user tribes"
 -- PART 6: Fish Trap System
 -- ============================================
 
--- Decoy profiles (match column names with seed data)
 CREATE TABLE IF NOT EXISTS public.decoy_profiles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -406,7 +413,7 @@ CREATE TABLE IF NOT EXISTS public.decoy_profiles (
   city VARCHAR(100) NOT NULL,
   bio TEXT,
   profile_photo_url TEXT,
-  persona_name TEXT, -- For backward compatibility
+  persona_name TEXT,
   persona_age INT,
   persona_gender VARCHAR(50),
   persona_city VARCHAR(100),
@@ -417,10 +424,9 @@ CREATE TABLE IF NOT EXISTS public.decoy_profiles (
   characteristics JSONB,
   created_at TIMESTAMP DEFAULT NOW(),
   last_request_sent_at TIMESTAMP,
-  request_send_interval INT DEFAULT 172800 -- 2 days in seconds
+  request_send_interval INT DEFAULT 172800
 );
 
--- Fish trap interactions (main conversations table)
 CREATE TABLE IF NOT EXISTS public.fish_trap_interactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -435,11 +441,10 @@ CREATE TABLE IF NOT EXISTS public.fish_trap_interactions (
   UNIQUE(user_id, decoy_id)
 );
 
--- Fish trap messages (with both interaction_id and conversation_id for compatibility)
 CREATE TABLE IF NOT EXISTS public.fish_trap_messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   interaction_id UUID REFERENCES public.fish_trap_interactions(id) ON DELETE CASCADE,
-  conversation_id UUID, -- For backward compatibility
+  conversation_id UUID,
   sender_type VARCHAR(50) NOT NULL,
   user_id UUID REFERENCES auth.users(id),
   decoy_id UUID REFERENCES public.decoy_profiles(id),
@@ -451,19 +456,16 @@ CREATE TABLE IF NOT EXISTS public.fish_trap_messages (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Create indices for performance
 CREATE INDEX IF NOT EXISTS idx_fish_trap_interactions_user ON public.fish_trap_interactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_fish_trap_interactions_decoy ON public.fish_trap_interactions(decoy_id);
 CREATE INDEX IF NOT EXISTS idx_fish_trap_messages_interaction ON public.fish_trap_messages(interaction_id);
 CREATE INDEX IF NOT EXISTS idx_fish_trap_messages_conversation ON public.fish_trap_messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_fish_trap_messages_created ON public.fish_trap_messages(created_at);
 
--- Enable RLS for Fish Trap tables
 ALTER TABLE public.decoy_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.fish_trap_interactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.fish_trap_messages ENABLE ROW LEVEL SECURITY;
 
--- Fish Trap RLS policies
 DROP POLICY IF EXISTS "Users can view active decoy profiles" ON public.decoy_profiles;
 CREATE POLICY "Users can view active decoy profiles"
   ON public.decoy_profiles FOR SELECT
@@ -522,16 +524,19 @@ CREATE POLICY "Admins can view fish trap messages"
   TO authenticated
   USING (public.is_admin());
 
--- Function to update updated_at timestamp
+-- FIX 4: update_updated_at_column with SET search_path
 CREATE OR REPLACE FUNCTION public.update_updated_at_column()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
     NEW.updated_at = NOW();
     RETURN NEW;
 END;
-$$ language 'plpgsql';
+$$;
 
--- Trigger for fish_trap_interactions
 DROP TRIGGER IF EXISTS update_fish_trap_interactions_updated_at ON public.fish_trap_interactions;
 CREATE TRIGGER update_fish_trap_interactions_updated_at
     BEFORE UPDATE ON public.fish_trap_interactions
@@ -541,7 +546,6 @@ CREATE TRIGGER update_fish_trap_interactions_updated_at
 -- PART 7: Verification System
 -- ============================================
 
--- Verification requests
 CREATE TABLE IF NOT EXISTS public.verification_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -578,7 +582,6 @@ CREATE POLICY "Admins can update verification requests"
   USING (public.is_admin())
   WITH CHECK (public.is_admin());
 
--- Contact info logs
 CREATE TABLE IF NOT EXISTS public.contact_info_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -623,7 +626,6 @@ CREATE POLICY "Admins can update contact logs"
 -- PART 8: Safety & Moderation System
 -- ============================================
 
--- Reports table
 CREATE TABLE IF NOT EXISTS public.reports (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   reporter_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -665,7 +667,6 @@ CREATE POLICY "Admins can manage reports"
   USING (public.is_admin())
   WITH CHECK (public.is_admin());
 
--- User blocks
 CREATE TABLE IF NOT EXISTS public.user_blocks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   blocker_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
@@ -693,7 +694,6 @@ CREATE POLICY "Admins view all blocks"
   TO authenticated
   USING (public.is_admin());
 
--- User feedback
 CREATE TABLE IF NOT EXISTS public.user_feedback (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
@@ -732,7 +732,6 @@ CREATE POLICY "Admins manage feedback"
   USING (public.is_admin())
   WITH CHECK (public.is_admin());
 
--- Deepfake scans
 CREATE TABLE IF NOT EXISTS public.deepfake_scans (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
@@ -766,7 +765,6 @@ CREATE POLICY "System insert scans"
   TO authenticated
   WITH CHECK (true);
 
--- Content auto removals
 CREATE TABLE IF NOT EXISTS public.content_auto_removals (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
@@ -798,7 +796,6 @@ CREATE POLICY "System insert auto removals"
   TO authenticated
   WITH CHECK (true);
 
--- Admin activity log
 CREATE TABLE IF NOT EXISTS public.admin_activity_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   admin_id UUID NOT NULL REFERENCES public.users(id) ON DELETE SET NULL,
@@ -826,12 +823,12 @@ CREATE POLICY "System insert activity log"
   TO authenticated
   WITH CHECK (true);
 
--- Helper function: is user blocked by target?
 CREATE OR REPLACE FUNCTION public.is_blocked_by(target_user_id UUID)
 RETURNS BOOLEAN
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
+SET search_path = public
 AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.user_blocks
@@ -840,7 +837,6 @@ AS $$
   );
 $$;
 
--- API usage logs
 CREATE TABLE IF NOT EXISTS public.api_usage_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   service TEXT NOT NULL,
@@ -869,7 +865,6 @@ CREATE POLICY "Service can insert api logs"
 -- PART 9: Notification System
 -- ============================================
 
--- Notification tokens (aligned with app requirements)
 CREATE TABLE IF NOT EXISTS public.notification_tokens (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -893,13 +888,18 @@ CREATE POLICY "Users can manage their notification tokens"
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
+-- FIX 5: update_notification_tokens_timestamp with SET search_path
 CREATE OR REPLACE FUNCTION public.update_notification_tokens_timestamp()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
   NEW.last_updated = NOW();
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 DROP TRIGGER IF EXISTS trigger_update_notification_tokens_timestamp ON public.notification_tokens;
 CREATE TRIGGER trigger_update_notification_tokens_timestamp
@@ -910,10 +910,9 @@ CREATE TRIGGER trigger_update_notification_tokens_timestamp
 -- PART 10: Suyamvaram System
 -- ============================================
 
--- Suyamvaram challenges
 CREATE TABLE IF NOT EXISTS public.suyamvaram_challenges (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  creator_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  creator_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT NOT NULL,
   challenge_type TEXT NOT NULL,
@@ -942,11 +941,10 @@ CREATE POLICY "Creators can update their own challenges"
   ON public.suyamvaram_challenges FOR UPDATE
   USING (auth.uid() = creator_id);
 
--- Suyamvaram applications
 CREATE TABLE IF NOT EXISTS public.suyamvaram_applications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   challenge_id UUID REFERENCES public.suyamvaram_challenges(id) ON DELETE CASCADE,
-  applicant_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  applicant_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
   status TEXT DEFAULT 'pending',
   applied_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(challenge_id, applicant_id)
@@ -958,8 +956,8 @@ DROP POLICY IF EXISTS "Users can view their own applications or applications to 
 CREATE POLICY "Users can view their own applications or applications to their challenges"
   ON public.suyamvaram_applications FOR SELECT
   USING (
-    auth.uid() = applicant_id 
-    OR 
+    auth.uid() = applicant_id
+    OR
     auth.uid() IN (SELECT creator_id FROM public.suyamvaram_challenges WHERE id = challenge_id)
   );
 
@@ -968,11 +966,17 @@ CREATE POLICY "Users can apply to challenges"
   ON public.suyamvaram_applications FOR INSERT
   WITH CHECK (auth.uid() = applicant_id);
 
--- Function to sync participant count
+DROP POLICY IF EXISTS "Creators can update application status" ON public.suyamvaram_applications;
+CREATE POLICY "Creators can update application status"
+  ON public.suyamvaram_applications FOR UPDATE
+  TO authenticated
+  USING (auth.uid() IN (SELECT creator_id FROM public.suyamvaram_challenges WHERE id = challenge_id));
+
 CREATE OR REPLACE FUNCTION public.sync_suyamvaram_participant_count()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
   UPDATE public.suyamvaram_challenges
@@ -995,76 +999,54 @@ CREATE TRIGGER trg_sync_participant_count
 -- PART 11: Seed Data
 -- ============================================
 
--- Seed decoy profiles (with both old and new column names for compatibility)
 INSERT INTO public.decoy_profiles (
   name, age, gender, city, bio, profile_photo_url, characteristics,
   persona_name, persona_age, persona_gender, persona_city, persona_bio, persona_occupation, is_active
 )
-VALUES 
-('Priya Sharma', 26, 'female', 'Mumbai', 'Software engineer by day, food blogger by night. Love exploring new restaurants and trying exotic cuisines. Looking for someone who appreciates good conversation and adventure.', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=500&q=60', '{"personality": "professional", "red_flag_triggers": ["money_mention", "rush_relationship"]}', 'Priya Sharma', 26, 'female', 'Mumbai', 'Software engineer by day, food blogger by night. Love exploring new restaurants and trying exotic cuisines.', 'Software Engineer', true),
-('Arjun Patel', 29, 'male', 'Delhi', 'Entrepreneur building my dream startup. Love traveling, hiking, and deep conversations about life. Seeking a partner who shares my ambition and values.', 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=500&q=60', '{"personality": "ambitious", "red_flag_triggers": ["investment_opportunity", "business_venture"]}', 'Arjun Patel', 29, 'male', 'Delhi', 'Entrepreneur building my dream startup. Love traveling, hiking, and deep conversations about life.', 'Entrepreneur', true),
-('Sneha Gupta', 24, 'female', 'Bangalore', 'UX Designer with a passion for creating beautiful digital experiences. Coffee addict, book lover, and weekend hiker. Looking for someone genuine who values kindness.', 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=500&q=60', '{"personality": "creative", "red_flag_triggers": ["contact_exchange", "meet_immediately"]}', 'Sneha Gupta', 24, 'female', 'Bangalore', 'UX Designer with a passion for creating beautiful digital experiences. Coffee addict, book lover, and weekend hiker.', 'UX Designer', true),
-('Rohan Singh', 31, 'male', 'Chennai', 'Doctor working in emergency medicine. Long shifts but love helping people. Playing guitar or exploring local cafes is focus. Seeking someone compassionate.', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=500&q=60', '{"personality": "caring", "red_flag_triggers": ["emergency_money", "family_emergency"]}', 'Rohan Singh', 31, 'male', 'Chennai', 'Doctor working in emergency medicine. Long shifts but love helping people. Playing guitar or exploring local cafes.', 'Doctor', true),
-('Ananya Reddy', 27, 'female', 'Hyderabad', 'Marketing manager who loves planning events and bringing people together. Fitness enthusiast, yoga practitioner, and amateur photographer.', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&q=60', '{"personality": "social", "red_flag_triggers": ["gift_sending", "expensive_gifts"]}', 'Ananya Reddy', 27, 'female', 'Hyderabad', 'Marketing manager who loves planning events and bringing people together. Fitness enthusiast, yoga practitioner, and amateur photographer.', 'Marketing Manager', true),
-('Vikram Kumar', 28, 'male', 'Pune', 'Data scientist fascinated by AI and machine learning. Love solving complex problems and teaching others. Weekend cycling and swimming.', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500&q=60', '{"personality": "intellectual", "red_flag_triggers": ["crypto_investment", "tech_startup"]}', 'Vikram Kumar', 28, 'male', 'Pune', 'Data scientist fascinated by AI and machine learning. Love solving complex problems and teaching others. Weekend cycling and swimming.', 'Data Scientist', true),
-('Kavya Menon', 25, 'female', 'Kochi', 'Journalist covering social issues and human stories. Passionate about making a difference. Love reading, writing, and meaningful conversations.', 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=500&q=60', '{"personality": "activist", "red_flag_triggers": ["charity_scam", "donation_request"]}', 'Kavya Menon', 25, 'female', 'Kochi', 'Journalist covering social issues and human stories. Passionate about making a difference. Love reading, writing, and meaningful conversations.', 'Journalist', true),
-('Aditya Joshi', 30, 'male', 'Ahmedabad', 'Architect designing sustainable buildings for the future. Love sustainable living, organic farming, and eco-friendly travel.', 'https://images.unsplash.com/photo-1552058544-f2b08422138a?w=500&q=60', '{"personality": "environmentalist", "red_flag_triggers": ["property_investment", "real_estate"]}', 'Aditya Joshi', 30, 'male', 'Ahmedabad', 'Architect designing sustainable buildings for the future. Love sustainable living, organic farming, and eco-friendly travel.', 'Architect', true),
-('Meera Iyer', 26, 'female', 'Chennai', 'Classical dancer and teacher. Expressing emotions through movement and music. Love traditional arts, spirituality, and connecting with like-minded souls.', 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=500&q=60', '{"personality": "artistic", "red_flag_triggers": ["spiritual_scam", "guru_disciple"]}', 'Meera Iyer', 26, 'female', 'Chennai', 'Classical dancer and teacher. Expressing emotions through movement and music. Love traditional arts, spirituality, and connecting with like-minded souls.', 'Classical Dancer', true),
-('Rahul Verma', 32, 'male', 'Jaipur', 'Hotel manager overseeing luxury properties. Love fine dining, wine tasting, and cultural experiences. Well-traveled and always planning the next adventure.', 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=500&q=60', '{"personality": "luxury", "red_flag_triggers": ["expensive_dates", "luxury_lifestyle"]}', 'Rahul Verma', 32, 'male', 'Jaipur', 'Hotel manager overseeing luxury properties. Love fine dining, wine tasting, and cultural experiences. Well-traveled and always planning the next adventure.', 'Hotel Manager', true)
+VALUES
+('Priya Sharma', 26, 'female', 'Mumbai', 'Software engineer by day, food blogger by night. Love exploring new restaurants and trying exotic cuisines. Looking for someone who appreciates good conversation and adventure.', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=500&q=60', '{"personality": "professional", "red_flag_triggers": ["money_mention", "rush_relationship"]}', 'Priya Sharma', 26, 'female', 'Mumbai', 'Software engineer by day, food blogger by night.', 'Software Engineer', true),
+('Arjun Patel', 29, 'male', 'Delhi', 'Entrepreneur building my dream startup. Love traveling, hiking, and deep conversations about life. Seeking a partner who shares my ambition and values.', 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=500&q=60', '{"personality": "ambitious", "red_flag_triggers": ["investment_opportunity", "business_venture"]}', 'Arjun Patel', 29, 'male', 'Delhi', 'Entrepreneur building my dream startup.', 'Entrepreneur', true),
+('Sneha Gupta', 24, 'female', 'Bangalore', 'UX Designer with a passion for creating beautiful digital experiences. Coffee addict, book lover, and weekend hiker.', 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=500&q=60', '{"personality": "creative", "red_flag_triggers": ["contact_exchange", "meet_immediately"]}', 'Sneha Gupta', 24, 'female', 'Bangalore', 'UX Designer with a passion for creating beautiful digital experiences.', 'UX Designer', true),
+('Rohan Singh', 31, 'male', 'Chennai', 'Doctor working in emergency medicine. Long shifts but love helping people.', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=500&q=60', '{"personality": "caring", "red_flag_triggers": ["emergency_money", "family_emergency"]}', 'Rohan Singh', 31, 'male', 'Chennai', 'Doctor working in emergency medicine.', 'Doctor', true),
+('Ananya Reddy', 27, 'female', 'Hyderabad', 'Marketing manager who loves planning events and bringing people together. Fitness enthusiast, yoga practitioner, and amateur photographer.', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&q=60', '{"personality": "social", "red_flag_triggers": ["gift_sending", "expensive_gifts"]}', 'Ananya Reddy', 27, 'female', 'Hyderabad', 'Marketing manager who loves planning events.', 'Marketing Manager', true),
+('Vikram Kumar', 28, 'male', 'Pune', 'Data scientist fascinated by AI and machine learning. Love solving complex problems and teaching others.', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500&q=60', '{"personality": "intellectual", "red_flag_triggers": ["crypto_investment", "tech_startup"]}', 'Vikram Kumar', 28, 'male', 'Pune', 'Data scientist fascinated by AI and machine learning.', 'Data Scientist', true),
+('Kavya Menon', 25, 'female', 'Kochi', 'Journalist covering social issues and human stories. Passionate about making a difference.', 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=500&q=60', '{"personality": "activist", "red_flag_triggers": ["charity_scam", "donation_request"]}', 'Kavya Menon', 25, 'female', 'Kochi', 'Journalist covering social issues.', 'Journalist', true),
+('Aditya Joshi', 30, 'male', 'Ahmedabad', 'Architect designing sustainable buildings for the future. Love sustainable living, organic farming, and eco-friendly travel.', 'https://images.unsplash.com/photo-1552058544-f2b08422138a?w=500&q=60', '{"personality": "environmentalist", "red_flag_triggers": ["property_investment", "real_estate"]}', 'Aditya Joshi', 30, 'male', 'Ahmedabad', 'Architect designing sustainable buildings.', 'Architect', true),
+('Meera Iyer', 26, 'female', 'Chennai', 'Classical dancer and teacher. Expressing emotions through movement and music.', 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=500&q=60', '{"personality": "artistic", "red_flag_triggers": ["spiritual_scam", "guru_disciple"]}', 'Meera Iyer', 26, 'female', 'Chennai', 'Classical dancer and teacher.', 'Classical Dancer', true),
+('Rahul Verma', 32, 'male', 'Jaipur', 'Hotel manager overseeing luxury properties. Love fine dining, wine tasting, and cultural experiences.', 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=500&q=60', '{"personality": "luxury", "red_flag_triggers": ["expensive_dates", "luxury_lifestyle"]}', 'Rahul Verma', 32, 'male', 'Jaipur', 'Hotel manager overseeing luxury properties.', 'Hotel Manager', true)
 ON CONFLICT DO NOTHING;
-
--- Add more decoys if needed (truncated for brevity, full list from seed_decoys_data.sql can be added)
 
 -- ============================================
 -- PART 12: Migration Data Fixes
 -- ============================================
 
--- If existing tables have conversation_id but app needs interaction_id, copy data
 DO $$
 BEGIN
-  -- Check if fish_trap_messages has conversation_id column
   IF EXISTS (
-    SELECT 1 FROM information_schema.columns 
-    WHERE table_schema = 'public' 
-      AND table_name = 'fish_trap_messages' 
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'fish_trap_messages'
       AND column_name = 'conversation_id'
   ) THEN
-    -- Update interaction_id from conversation_id where interaction_id is NULL
     UPDATE public.fish_trap_messages
     SET interaction_id = conversation_id
     WHERE interaction_id IS NULL AND conversation_id IS NOT NULL;
-    
     RAISE NOTICE 'Migrated conversation_id to interaction_id for fish_trap_messages';
-  END IF;
-  
-  -- Check if fish_trap_interactions table exists but fish_trap_conversations doesn't
-  IF EXISTS (
-    SELECT 1 FROM information_schema.tables 
-    WHERE table_schema = 'public' 
-      AND table_name = 'fish_trap_conversations'
-  ) AND NOT EXISTS (
-    SELECT 1 FROM information_schema.tables 
-    WHERE table_schema = 'public' 
-      AND table_name = 'fish_trap_interactions'
-  ) THEN
-    -- Create interactions table from conversations
-    CREATE TABLE public.fish_trap_interactions AS 
-    SELECT * FROM public.fish_trap_conversations;
-    
-    RAISE NOTICE 'Created fish_trap_interactions from fish_trap_conversations';
   END IF;
 END $$;
 
 -- ============================================
--- VERIFICATION QUERIES
+-- VERIFICATION
 -- ============================================
 
-/*
--- Run these after migration to verify:
+DO $$
+BEGIN
+  RAISE NOTICE 'Migration complete! Run verification queries to confirm.';
+END $$;
 
--- Check all required tables exist:
-SELECT table_name FROM information_schema.tables 
-WHERE table_schema = 'public' AND table_name IN 
+/*
+SELECT table_name FROM information_schema.tables
+WHERE table_schema = 'public' AND table_name IN
 ('users', 'user_profiles', 'user_actions', 'matches', 'messages',
  'posts', 'post_reactions', 'tribes', 'user_tribes',
  'decoy_profiles', 'fish_trap_interactions', 'fish_trap_messages',
@@ -1074,33 +1056,6 @@ WHERE table_schema = 'public' AND table_name IN
  'suyamvaram_challenges', 'suyamvaram_applications', 'admin_users')
 ORDER BY table_name;
 
--- Check decoy profiles seeded:
-SELECT COUNT(*) as profile_count FROM public.decoy_profiles;
-
--- Check is_admin() function works:
+SELECT COUNT(*) as decoy_count FROM public.decoy_profiles;
 SELECT public.is_admin();
-
--- Check RLS is enabled on key tables:
-SELECT tablename, rowsecurity FROM pg_tables 
-WHERE schemaname = 'public' AND tablename IN ('users', 'posts', 'messages')
-ORDER BY tablename;
-*/
-
--- ============================================
--- MIGRATION COMPLETE!
--- ============================================
-/*
-Summary of fixes applied:
-1. Unified table schemas across all migrations
-2. Fixed column name inconsistencies (interaction_id vs conversation_id)
-3. Added backward compatibility columns
-4. Consolidated is_admin() function
-5. Fixed RLS policy conflicts
-6. Added all required indexes
-7. Seeded necessary data
-8. Fixed foreign key references
-9. Added missing columns from all migrations
-10. Created proper triggers and functions
-
-The database is now ready for the app.
 */

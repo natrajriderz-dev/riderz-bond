@@ -6,8 +6,9 @@ const {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   Alert,
+  Platform,
+  StatusBar
 } = require('react-native');
 const { useState } = React;
 const { Ionicons } = require('@expo/vector-icons');
@@ -34,7 +35,7 @@ const VideoVerificationScreen = ({ navigation }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const fileExt = capturedMedia.uri.split('.').pop();
+      const fileExt = capturedMedia.name ? capturedMedia.name.split('.').pop() : 'jpg';
       const fileName = `${user.id}_${Date.now()}.${fileExt}`;
       const filePath = `verifications/${fileName}`;
       const mediaUrl = await uploadMedia(capturedMedia.uri, 'verification_media', filePath);
@@ -77,15 +78,15 @@ const VideoVerificationScreen = ({ navigation }) => {
       </Text>
       <View style={styles.bulletList}>
         <View style={styles.bulletRow}>
-          <Ionicons name="checkmark-circle" size={24} color={Colors.success} />
+          <Ionicons name="checkmark-circle" size={24} color={Colors.success} style={{ marginRight: 16 }} />
           <Text style={styles.bulletText}>Align your face in the oval</Text>
         </View>
         <View style={styles.bulletRow}>
-          <Ionicons name="checkmark-circle" size={24} color={Colors.success} />
+          <Ionicons name="checkmark-circle" size={24} color={Colors.success} style={{ marginRight: 16 }} />
           <Text style={styles.bulletText}>Turn your head slowly left and right</Text>
         </View>
         <View style={styles.bulletRow}>
-          <Ionicons name="checkmark-circle" size={24} color={Colors.success} />
+          <Ionicons name="checkmark-circle" size={24} color={Colors.success} style={{ marginRight: 16 }} />
           <Text style={styles.bulletText}>Speak the numbers on screen (optional)</Text>
         </View>
       </View>
@@ -112,7 +113,7 @@ const VideoVerificationScreen = ({ navigation }) => {
       <View style={styles.buttonRow}>
         <TouchableOpacity 
           testID="retake-video-button"
-          style={styles.secondaryBtn} 
+          style={[styles.secondaryBtn, { marginRight: 16 }]} 
           onPress={() => setStep(2)}
         >
           <Text style={styles.secondaryBtnText}>Retake</Text>
@@ -130,7 +131,7 @@ const VideoVerificationScreen = ({ navigation }) => {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 40 }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="chevron-back" size={28} color={Colors.text} />
@@ -142,7 +143,7 @@ const VideoVerificationScreen = ({ navigation }) => {
       {step === 1 && <Instructions />}
       {step === 2 && <CameraCapture onCapture={handleCapture} instruction="Align your face & hold to record" />}
       {step === 3 && <Review />}
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -172,8 +173,8 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 28, fontWeight: 'bold', color: Colors.text, marginBottom: 16, textAlign: 'center' },
   desc: { fontSize: 16, color: Colors.textSecondary, textAlign: 'center', marginBottom: 32, lineHeight: 24 },
-  bulletList: { alignSelf: 'stretch', marginBottom: 40, gap: 16 },
-  bulletRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  bulletList: { alignSelf: 'stretch', marginBottom: 40 },
+  bulletRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   bulletText: { fontSize: 16, color: Colors.text },
   primaryBtn: { 
     backgroundColor: Colors.primary, 
@@ -189,7 +190,7 @@ const styles = StyleSheet.create({
   },
   primaryBtnFlat: { flex: 2, backgroundColor: Colors.primary, paddingVertical: 16, borderRadius: 16, alignItems: 'center' },
   primaryBtnText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  buttonRow: { flexDirection: 'row', gap: 16, width: '100%' },
+  buttonRow: { flexDirection: 'row', width: '100%' },
   secondaryBtn: { flex: 1, paddingVertical: 16, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
   secondaryBtnText: { fontSize: 18, color: Colors.textSecondary },
   reviewPlaceholder: { width: '100%', height: 300, backgroundColor: Colors.surface, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginBottom: 24, borderWidth: 1, borderColor: Colors.border },

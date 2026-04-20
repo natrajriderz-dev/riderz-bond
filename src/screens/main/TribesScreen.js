@@ -15,14 +15,14 @@ const { Ionicons } = require('@expo/vector-icons');
 const AsyncStorage = require('@react-native-async-storage/async-storage').default;
 const { supabase } = require('../../../supabase');
 const { useMode } = require('../../../context/ModeContext');
-const { isOwnerUser } = require('../../config/privilegedAccess');
+const { checkIsAdmin } = require('../../config/privilegedAccess');
 const Colors = require('../../theme/Colors');
-const { tribesData } = require('../../utils/constants');
+const Colors = require('../../theme/Colors');
 const TribeCard = require('../../components/tribes/TribeCard');
 const MyTribeCard = require('../../components/tribes/MyTribeCard');
 
 const TribesScreen = ({ navigation }) => {
-  const { userMode, isPremium } = useMode();
+  const { userMode, activeMode, isPremium } = useMode();
   const [userTribes, setUserTribes] = useState([]);
   const [allTribes, setAllTribes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -32,14 +32,14 @@ const TribesScreen = ({ navigation }) => {
   useEffect(() => {
     loadUserData();
     loadTribes();
-  }, [userMode]);
+  }, [activeMode]);
 
   const loadUserData = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      if (isOwnerUser(user.id)) {
+      if (await checkIsAdmin(user.id)) {
         await AsyncStorage.setItem('isPremium', 'true');
       }
 
@@ -70,36 +70,25 @@ const TribesScreen = ({ navigation }) => {
       const { data, error } = await supabase
         .from('tribes')
         .select('id, slug, name, description, icon, category, member_count')
-        .eq('category', userMode)
+        .eq('category', activeMode)
         .order('name', { ascending: true });
 
       if (error) throw error;
 
-      if (data?.length) {
-        setAllTribes(data.map((tribe) => ({
-          id: tribe.id,
-          slug: tribe.slug,
-          name: tribe.name,
-          description: tribe.description,
-          icon: tribe.icon || '✨',
-          member_count: tribe.member_count || 0,
-          category: tribe.category,
-        })));
+      if (!data || data.length === 0) {
+        setAllTribes([]);
         return;
       }
 
-      const fallback = tribesData.map((tribe) => {
-        const modeData = userMode === 'dating' ? tribe.dating : tribe.matrimony;
-        return {
-          id: tribe.id,
-          slug: tribe.id,
-          ...modeData,
-          icon: tribe.icon,
-          member_count: Math.floor(Math.random() * 100) + 20,
-          category: userMode,
-        };
-      });
-      setAllTribes(fallback);
+      setAllTribes(data.map((tribe) => ({
+        id: tribe.id,
+        slug: tribe.slug,
+        name: tribe.name,
+        description: tribe.description,
+        icon: tribe.icon || '✨',
+        member_count: tribe.member_count || 0,
+        category: tribe.category,
+      })));
     } finally {
       setLoading(false);
     }
@@ -108,7 +97,7 @@ const TribesScreen = ({ navigation }) => {
   const handleTribePress = (tribe) => {
     const isUserTribe = userTribes.some(t => t.tribe.id === tribe.id);
     if (isUserTribe || isPremium) {
-      navigation.navigate('TribeInner', { tribe, userMode });
+      navigation.navigate('TribeInner', { tribe, userMode: activeMode });
     } else {
       setSelectedTribe(tribe);
       setShowPremiumModal(true);
@@ -123,7 +112,7 @@ const TribesScreen = ({ navigation }) => {
     );
   }
 
-  const itemType = userMode === 'dating' ? 'Tribes' : 'Zones';
+  const itemType = activeMode === 'dating' ? 'Tribes' : 'Zones';
 
   return (
     <View style={styles.container}>
@@ -168,20 +157,28 @@ const TribesScreen = ({ navigation }) => {
             <Text style={styles.sectionTitle}>All {itemType}</Text>
             <Text style={styles.sectionCount}>{allTribes.length}</Text>
           </View>
-          <FlatList
-            data={allTribes}
-            renderItem={({ item }) => (
-              <TribeCard
-                item={item}
-                isLocked={!isPremium && !userTribes.some(t => t.tribe.id === item.id)}
-                onPress={handleTribePress}
-              />
-            )}
-            keyExtractor={item => item.id}
-            numColumns={2}
-            scrollEnabled={false}
-            contentContainerStyle={{ paddingHorizontal: 14 }}
-          />
+          {allTribes.length > 0 ? (
+            <FlatList
+              data={allTribes}
+              renderItem={({ item }) => (
+                <TribeCard
+                  item={item}
+                  isLocked={!isPremium && !userTribes.some(t => t.tribe.id === item.id)}
+                  onPress={handleTribePress}
+                />
+              )}
+              keyExtractor={item => item.id}
+              numColumns={2}
+              scrollEnabled={false}
+              contentContainerStyle={{ paddingHorizontal: 14 }}
+            />
+          ) : (
+            <View style={styles.emptyState}>
+              <Ionicons name="people-outline" size={48} color={Colors.textSecondary} />
+              <Text style={styles.emptyStateTitle}>No {itemType} Available</Text>
+              <Text style={styles.emptyStateDesc}>Check back later or try a different mode.</Text>
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -221,6 +218,9 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.text },
   sectionCount: { fontSize: 14, color: Colors.textSecondary },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyState: { alignItems: 'center', padding: 40, marginTop: 20 },
+  emptyStateTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.text, marginTop: 16 },
+  emptyStateDesc: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', marginTop: 8 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalContent: { backgroundColor: Colors.surface, borderRadius: 24, padding: 30, width: '100%', alignItems: 'center' },
   modalTitle: { fontSize: 22, fontWeight: 'bold', color: Colors.text, marginBottom: 12 },

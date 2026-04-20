@@ -15,7 +15,8 @@ const Colors = require('../../theme/Colors');
 const { useMode } = require('../../../context/ModeContext');
 
 const FiltersScreen = ({ navigation }) => {
-  const { userMode } = useMode();
+  const { userMode, activeMode } = useMode();
+  const themeColor = activeMode === 'matrimony' ? '#D4A017' : '#E91E63';
   const [distance, setDistance] = useState(50);
   const [ageRange, setAgeRange] = useState([18, 35]);
   const [gender, setGender] = useState('Everyone');
@@ -68,10 +69,10 @@ const FiltersScreen = ({ navigation }) => {
         {options.map(opt => (
           <TouchableOpacity
             key={opt}
-            style={[styles.optionBtn, current === opt && styles.optionBtnActive]}
+            style={[styles.optionBtn, current === opt && { borderColor: themeColor, backgroundColor: themeColor + '10' }]}
             onPress={() => setter(opt)}
           >
-            <Text style={[styles.optionText, current === opt && styles.optionTextActive]}>{opt}</Text>
+            <Text style={[styles.optionText, current === opt && { color: themeColor, fontWeight: 'bold' }]}>{opt}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -86,7 +87,7 @@ const FiltersScreen = ({ navigation }) => {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Filters</Text>
         <TouchableOpacity onPress={saveFilters}>
-          <Text style={styles.doneBtn}>Done</Text>
+          <Text style={[styles.doneBtn, { color: themeColor }]}>Done</Text>
         </TouchableOpacity>
       </View>
 
@@ -101,7 +102,7 @@ const FiltersScreen = ({ navigation }) => {
             {[10, 25, 50, 100, 500].map(d => (
               <TouchableOpacity
                 key={d}
-                style={[styles.chip, distance === d && styles.chipActive]}
+                style={[styles.chip, distance === d && { backgroundColor: themeColor, borderColor: themeColor }]}
                 onPress={() => setDistance(d)}
               >
                 <Text style={[styles.chipText, distance === d && styles.chipTextActive]}>{d}mi</Text>
@@ -119,7 +120,7 @@ const FiltersScreen = ({ navigation }) => {
             {[18, 25, 30, 35, 45, 60].map(a => (
               <TouchableOpacity
                 key={a}
-                style={[styles.chip, ageRange.includes(a) && styles.chipActive]}
+                style={[styles.chip, ageRange.includes(a) && { backgroundColor: themeColor, borderColor: themeColor }]}
                 onPress={() => {
                   if (ageRange[0] === a) return; // simple toggle logic
                   setAgeRange([ageRange[0], a]);
@@ -148,7 +149,7 @@ const FiltersScreen = ({ navigation }) => {
           <Switch
             value={showVerifiedOnly}
             onValueChange={setShowVerifiedOnly}
-            trackColor={{ false: Colors.surfaceLight, true: Colors.primary }}
+            trackColor={{ false: Colors.surfaceLight, true: themeColor }}
           />
         </View>
 

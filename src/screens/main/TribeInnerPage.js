@@ -17,6 +17,7 @@ const Colors = require('../../theme/Colors');
 
 const TribeInnerPage = ({ route, navigation }) => {
   const { tribe, userMode } = route.params;
+  const themeColor = userMode === 'matrimony' ? '#D4A017' : '#E91E63';
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isMember, setIsMember] = useState(false);
@@ -128,11 +129,11 @@ const TribeInnerPage = ({ route, navigation }) => {
 
           {isMember ? (
             <TouchableOpacity style={[styles.actionBtn, styles.leaveBtn]} onPress={handleLeave}>
-              <Text style={styles.actionBtnText}>Leave Tribe</Text>
+              <Text style={[styles.actionBtnText, { color: Colors.text }]}>Leave {userMode === 'dating' ? 'Tribe' : 'Zone'}</Text>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity style={styles.actionBtn} onPress={handleJoin}>
-              <Text style={styles.actionBtnText}>Join Tribe</Text>
+            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: themeColor }]} onPress={handleJoin}>
+              <Text style={[styles.actionBtnText, { color: '#fff' }]}>Join {userMode === 'dating' ? 'Tribe' : 'Zone'}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -151,7 +152,7 @@ const TribeInnerPage = ({ route, navigation }) => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Members</Text>
           {loading ? (
-            <ActivityIndicator size="small" color={Colors.primary} />
+            <ActivityIndicator size="small" color={themeColor} />
           ) : (
             <FlatList
               data={members}

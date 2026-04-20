@@ -17,6 +17,7 @@ const { supabase } = require('../../../supabase');
 const AuthStyles = require('./AuthStyles');
 const Colors = require('../../theme/Colors');
 const { pickMedia, compressImage, uploadMedia } = require('../../utils/mediaUtils');
+const LocationPicker = require('../../components/shared/LocationPicker');
 let DateTimePicker;
 try {
   DateTimePicker = require('@react-native-community/datetimepicker').default;
@@ -201,16 +202,18 @@ const BasicInfoScreen = ({ navigation, route }) => {
         if (profileError) throw profileError;
       }
 
-      await AsyncStorage.setItem('onboarding_complete', 'true');
-      const parentNavigation = navigation.getParent?.();
-      if (parentNavigation?.replace) {
-        parentNavigation.replace('Main');
-      } else {
-        navigation.replace('Main');
-      }
+      await AsyncStorage.setItem('onboarding_complete', 'false'); // Still need verification
+      navigation.replace('VideoVerification');
     } catch (err) {
-      console.error('BasicInfo submit error:', err);
-      setError(err?.message || 'Failed to complete profile');
+      console.error('Save Profile Error:', err);
+      const { supabaseConfig } = require('../../../supabase');
+      let errorMessage = err.message || 'Failed to save profile';
+      
+      if (errorMessage.includes('Network request failed')) {
+        errorMessage = `Network Error: Cannot reach ${supabaseConfig.projectHost}. Please check your internet.`;
+      }
+      
+      Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -243,7 +246,35 @@ const BasicInfoScreen = ({ navigation, route }) => {
       <TextInput style={AuthStyles.input} value={fullName} onChangeText={setFullName} placeholder="Enter your full name" placeholderTextColor={Colors.textSecondary} />
 
       <Text style={AuthStyles.inputLabel}>Date of Birth</Text>
-      {DateTimePicker ? (
+      {Platform.OS === 'web' ? (
+        React.createElement('input', {
+          type: 'date',
+          value: dobDate ? toIsoDate(dobDate) : '',
+          onChange: (e) => {
+            const val = e.target.value;
+            if (!val) return;
+            const [y, m, d] = val.split('-');
+            const dateObj = new Date(Number(y), Number(m) - 1, Number(d));
+            setDobDate(dateObj);
+            setDob(formatDobDisplay(dateObj));
+            setError('');
+          },
+          max: toIsoDate(new Date()),
+          style: {
+            height: '50px',
+            backgroundColor: Colors.surface,
+            borderRadius: '12px',
+            padding: '0 16px',
+            fontSize: '16px',
+            color: Colors.text,
+            border: `1px solid ${Colors.border}`,
+            outline: 'none',
+            fontFamily: 'inherit',
+            width: '100%',
+            boxSizing: 'border-box'
+          }
+        })
+      ) : DateTimePicker ? (
         <>
           <TouchableOpacity
             style={[AuthStyles.input, { justifyContent: 'center' }]}
@@ -285,8 +316,11 @@ const BasicInfoScreen = ({ navigation, route }) => {
         ))}
       </View>
 
-      <Text style={AuthStyles.inputLabel}>City</Text>
-      <TextInput style={AuthStyles.input} value={city} onChangeText={setCity} placeholder="Enter your city" placeholderTextColor={Colors.textSecondary} />
+      <Text style={AuthStyles.inputLabel}>Location (City, State, Country)</Text>
+      <LocationPicker 
+        initialCity={city} 
+        onLocationSelect={(locationString) => setCity(locationString)} 
+      />
 
       {error ? <Text style={AuthStyles.errorText}>{error}</Text> : null}
       {warning ? <Text style={[AuthStyles.errorText, { color: '#F59E0B' }]}>{warning}</Text> : null}

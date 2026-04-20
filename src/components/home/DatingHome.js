@@ -19,7 +19,10 @@ const SwipeableCard = require('./SwipeableCard');
 const fishTrapService = require('../../services/fishTrapService');
 const { Ionicons } = require('@expo/vector-icons');
 
+const { useMode } = require('../../../context/ModeContext');
 const DatingHome = ({ navigation }) => {
+  const { userMode } = useMode();
+  const themeColor = '#E91E63'; // Vibrant Pink for Dating
   const isFocused = useIsFocused();
   const [profiles, setProfiles] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -120,12 +123,7 @@ const DatingHome = ({ navigation }) => {
       }
     } catch (error) {
       console.log('Load discover error:', error.message);
-      // Fallback to mock for demo stability
-      const mockProfiles = [
-        { id: '1', display_name: 'Priya', age: 26, city: 'Mumbai', profile_picture_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=500&q=60', tribes: [{ name: 'Foodie' }], is_decoy: false, can_send_request: false },
-        { id: '2', display_name: 'Ananya', age: 24, city: 'Bangalore', profile_picture_url: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=500&q=60', tribes: [{ name: 'Adventurer' }], is_decoy: true, can_send_request: true }
-      ];
-      setProfiles(mockProfiles);
+      setProfiles([]);
     } finally {
       setLoading(false);
     }
@@ -209,7 +207,7 @@ const DatingHome = ({ navigation }) => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <ActivityIndicator size="large" color={themeColor} />
       </View>
     );
   }
@@ -224,7 +222,7 @@ const DatingHome = ({ navigation }) => {
       </View>
 
       <TouchableOpacity style={styles.filterBar} onPress={() => navigation.navigate('Filters')}>
-        <Ionicons name="location" size={16} color={Colors.primary} />
+        <Ionicons name="location" size={16} color={themeColor} />
         <Text style={styles.filterText}>
           {filters.distance}mi • {filters.ageRange[0]}-{filters.ageRange[1]} • {filters.gender}
         </Text>
@@ -238,7 +236,7 @@ const DatingHome = ({ navigation }) => {
         ) : (
           <View style={styles.empty}>
             <Text style={styles.emptyText}>No more profiles</Text>
-            <TouchableOpacity style={styles.refreshBtn} onPress={loadFiltersAndProfiles}>
+            <TouchableOpacity style={[styles.refreshBtn, { backgroundColor: themeColor }]} onPress={loadFiltersAndProfiles}>
               <Text style={styles.btnText}>Change Filters</Text>
             </TouchableOpacity>
           </View>
@@ -249,8 +247,8 @@ const DatingHome = ({ navigation }) => {
         <TouchableOpacity testID="pass-button" style={[styles.actionBtn, { borderColor: Colors.error }]} onPress={() => handleManualAction('pass')}>
           <Ionicons name="close" size={32} color={Colors.error} />
         </TouchableOpacity>
-        <TouchableOpacity testID="superlike-button" style={[styles.actionBtn, styles.largeBtn, { borderColor: Colors.primary }]} onPress={() => handleManualAction('superlike')}>
-          <Ionicons name="star" size={32} color={Colors.primary} />
+        <TouchableOpacity testID="superlike-button" style={[styles.actionBtn, styles.largeBtn, { borderColor: themeColor }]} onPress={() => handleManualAction('superlike')}>
+          <Ionicons name="star" size={32} color={themeColor} />
         </TouchableOpacity>
         <TouchableOpacity testID="like-button" style={[styles.actionBtn, { borderColor: Colors.success }]} onPress={() => handleManualAction('like')}>
           <Ionicons name="heart" size={32} color={Colors.success} />
@@ -261,11 +259,11 @@ const DatingHome = ({ navigation }) => {
         <View style={styles.matchOverlay}>
           <Text style={styles.matchTitle}>It's a Match!</Text>
           <View style={styles.matchPics}>
-            <Image source={{ uri: userProfile?.profile_picture_url || 'https://via.placeholder.com/100' }} style={styles.matchPic} />
-            <Ionicons name="heart" size={40} color={Colors.primary} />
-            <Image source={{ uri: matchedProfile?.profile_picture_url || 'https://via.placeholder.com/100' }} style={styles.matchPic} />
+            <Image source={{ uri: userProfile?.profile_picture_url || 'https://via.placeholder.com/100' }} style={[styles.matchPic, { borderColor: themeColor }]} />
+            <Ionicons name="heart" size={40} color={themeColor} />
+            <Image source={{ uri: matchedProfile?.profile_picture_url || 'https://via.placeholder.com/100' }} style={[styles.matchPic, { borderColor: themeColor }]} />
           </View>
-          <TouchableOpacity style={styles.msgBtn} onPress={() => { setShowMatch(false); navigation.navigate('Chat', { conversationId: matchedProfile.id, otherUser: matchedProfile }); }}>
+          <TouchableOpacity style={[styles.msgBtn, { backgroundColor: themeColor }]} onPress={() => { setShowMatch(false); navigation.navigate('Chat', { conversationId: matchedProfile.id, otherUser: matchedProfile }); }}>
             <Text style={styles.msgBtnText}>Send Message</Text>
           </TouchableOpacity>
           <TouchableOpacity style={{ marginTop: 20 }} onPress={() => setShowMatch(false)}>
@@ -288,7 +286,7 @@ const DatingHome = ({ navigation }) => {
             <View style={styles.verificationButtons}>
               <TouchableOpacity
                 testID="verify-popup-button"
-                style={[styles.verificationBtn, styles.verifyBtn]}
+                style={[styles.verificationBtn, styles.verifyBtn, { backgroundColor: themeColor }]}
                 onPress={() => {
                   setShowVerificationPopup(false);
                   // Navigate to verification screen

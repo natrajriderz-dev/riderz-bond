@@ -67,7 +67,7 @@ const LoginScreen = ({ navigation }) => {
         if (profile?.profile_complete) {
           navigation.replace('Main');
         } else {
-          navigation.replace('BasicInfo', { email: user.email });
+          navigation.replace('Onboarding');
         }
       } else if (!session && signInError?.message?.includes('Email not confirmed')) {
         // User exists but email not confirmed - show message with option to confirm
@@ -75,13 +75,13 @@ const LoginScreen = ({ navigation }) => {
       }
     } catch (err) {
       console.error('Login Error:', err);
-      console.error('Error details:', JSON.stringify(err, null, 2));
-      let errorMessage = 'Failed to login';
-      if (err.message && err.message.includes('fetch')) {
-        errorMessage = 'Network error. Please check your internet connection and try again.';
-      } else if (err.message) {
-        errorMessage = err.message;
+      const { supabaseConfig } = require('../../../supabase');
+      let errorMessage = err.message || 'Failed to login';
+      
+      if (errorMessage.includes('Network request failed') || errorMessage.includes('fetch')) {
+        errorMessage = `Network Error: Cannot reach ${supabaseConfig.projectHost}. Please check your internet.`;
       }
+      
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -130,6 +130,10 @@ const LoginScreen = ({ navigation }) => {
           <Ionicons name={showPassword ? 'eye' : 'eye-off'} size={20} color={Colors.textSecondary} />
         </TouchableOpacity>
       </View>
+
+      <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')} style={{ alignSelf: 'flex-end', marginBottom: 20 }}>
+        <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: '600' }}>Forgot Password?</Text>
+      </TouchableOpacity>
 
       {error ? <Text style={AuthStyles.errorText}>{error}</Text> : null}
 

@@ -11,6 +11,8 @@ const {
 const { Ionicons } = require('@expo/vector-icons');
 const { LinearGradient } = require('expo-linear-gradient');
 const Colors = require('../../theme/Colors');
+const paymentService = require('../../services/paymentService');
+const { Alert } = require('react-native');
 
 const { width } = Dimensions.get('window');
 
@@ -60,7 +62,14 @@ const PremiumScreen = ({ navigation }) => {
         
         <TouchableOpacity 
           style={[styles.selectBtn, { backgroundColor: plan.color[0] }]}
-          onPress={() => {/* Handle Payment */}}
+          onPress={async () => {
+            const result = await paymentService.createCheckoutSession(plan.id);
+            if (result.success) {
+              Alert.alert('Payment Initialized', result.message);
+            } else {
+              Alert.alert('Error', result.error || 'Could not start payment process');
+            }
+          }}
         >
           <Text style={styles.selectBtnText}>Upgrade Now</Text>
         </TouchableOpacity>

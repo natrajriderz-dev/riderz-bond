@@ -7,7 +7,7 @@ module.exports = {
     trace: 'on-first-retry',
   },
   webServer: {
-    command: 'python3 -m http.server 8081',
+    command: 'npx expo start --web',
     port: 8081,
     reuseExistingServer: true,
   },

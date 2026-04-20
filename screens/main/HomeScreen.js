@@ -7,12 +7,13 @@ const MatrimonyHome = require('../../src/components/home/MatrimonyHome');
 const Colors = require('../../src/theme/Colors');
 
 const HomeScreen = ({ navigation }) => {
-  const { userMode } = useMode();
+  const { userMode, activeMode } = useMode();
+  const displayMode = activeMode === 'admin' ? userMode : activeMode;
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
-      {userMode === 'dating' ? (
+      {displayMode === 'dating' ? (
         <DatingHome navigation={navigation} />
       ) : (
         <MatrimonyHome navigation={navigation} />

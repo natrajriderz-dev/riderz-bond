@@ -8,6 +8,107 @@ const Colors = require('../../theme/Colors');
 const Camera = ExpoCamera.Camera || ExpoCamera;
 const CameraView = ExpoCamera.CameraView || ExpoCamera.default || null;
 
+const WebCamera = ({ onCapture, instruction }) => {
+  const videoRef = React.useRef(null);
+  const streamRef = React.useRef(null);
+  const mediaRecorderRef = React.useRef(null);
+  const [isRecording, setIsRecording] = React.useState(false);
+
+  React.useEffect(() => {
+    let mounted = true;
+    const startWebcam = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        if (mounted && videoRef.current) {
+          videoRef.current.srcObject = stream;
+          streamRef.current = stream;
+        }
+      } catch (err) {
+        console.error('Webcam error:', err);
+      }
+    };
+    startWebcam();
+    return () => {
+      mounted = false;
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
+
+  const takePhoto = () => {
+    if (!videoRef.current) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    canvas.getContext('2d').drawImage(videoRef.current, 0, 0);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+    onCapture({ uri: dataUrl, name: `web_photo_${Date.now()}.jpg`, type: 'image/jpeg' });
+  };
+
+  const startVideo = () => {
+    if (!streamRef.current) return;
+    try {
+      const mediaRecorder = new MediaRecorder(streamRef.current);
+      mediaRecorderRef.current = mediaRecorder;
+      const chunks = [];
+      mediaRecorder.ondataavailable = e => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        const reader = new FileReader();
+        reader.readAsDataURL(blob); 
+        reader.onloadend = () => {
+          onCapture({ uri: reader.result, name: `web_video_${Date.now()}.webm`, type: 'video/webm' });
+        }
+      };
+      mediaRecorder.start();
+      setIsRecording(true);
+      setTimeout(() => stopVideo(), 5000);
+    } catch (err) {
+      console.error('MediaRecorder error', err);
+    }
+  };
+
+  const stopVideo = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={[styles.camera, { position: 'relative' }]}>
+        {React.createElement('video', {
+          ref: videoRef,
+          autoPlay: true,
+          playsInline: true,
+          muted: true, // Need muted to autoPlay video element
+          style: { width: '100%', height: '100%', objectFit: 'cover' }
+        })}
+      </View>
+      <View style={styles.overlay}>
+        <View style={styles.maskContainer}>
+          <View style={styles.ovalMask} />
+        </View>
+        <View style={styles.controls}>
+          <Text style={styles.instruction}>{instruction}</Text>
+          <TouchableOpacity 
+            style={[styles.captureBtn, isRecording && styles.recordingBtn]} 
+            onPress={isRecording ? stopVideo : takePhoto}
+            onLongPress={startVideo}
+          >
+            <View style={styles.captureInner} />
+          </TouchableOpacity>
+          <Text style={styles.subInstruction}>Tap for photo, Hold for 5s video</Text>
+        </View>
+      </View>
+    </View>
+  );
+};
+
 const CameraCapture = ({ onCapture, type = 'front', instruction = 'Align your face in the oval' }) => {
   const [hasPermission, setHasPermission] = React.useState(null);
   const [cameraType, setCameraType] = React.useState(type === 'front' ? 'front' : 'back');
@@ -118,16 +219,7 @@ const CameraCapture = ({ onCapture, type = 'front', instruction = 'Align your fa
   }
 
   if (Platform.OS === 'web') {
-    return (
-      <View style={styles.container}>
-        <View style={[styles.camera, { justifyContent: 'center', alignItems: 'center', padding: 20 }]}> 
-          <Text style={styles.instruction}>Upload a photo or short video for verification</Text>
-          <TouchableOpacity style={styles.uploadBtn} onPress={handleFileUpload}>
-            <Text style={styles.uploadText}>Upload File</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
+    return <WebCamera onCapture={onCapture} instruction={instruction} />;
   }
 
   return (

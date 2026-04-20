@@ -22,11 +22,13 @@ const AsyncStorage = require('@react-native-async-storage/async-storage').defaul
 const axios = require('axios');
 const { pickMedia, compressImage, uploadMedia } = require('../../src/utils/mediaUtils');
 const { supabase } = require('../../supabase');
-const { isOwnerUser } = require('../../src/config/privilegedAccess');
+const { checkIsAdmin } = require('../../src/config/privilegedAccess');
+const { useMode } = require('../../context/ModeContext');
 
-const Camera = ExpoCamera.Camera || ExpoCamera;
-const CameraView = ExpoCamera.CameraView || ExpoCamera.default || null;
-const Video = ExpoAV.Video || ExpoAV.default?.Video || ExpoAV.default || null;
+// Import modular screens
+const BasicInfoScreen = require('../../src/screens/auth/BasicInfoScreen');
+const VideoVerificationScreen = require('../../src/screens/auth/VideoVerificationScreen');
+const VerificationSuccessScreen = require('../../src/screens/auth/VerificationSuccessScreen');
 
 const Stack = createStackNavigator();
 
@@ -484,6 +486,7 @@ const matrimonyZones = [
 const ModeSelectScreen = ({ navigation }) => {
   const [selectedMode, setSelectedMode] = useState(null);
   const [loading, setLoading] = useState(false);
+  const { switchMode } = useMode();
 
   const modes = [
     {
@@ -515,6 +518,7 @@ const ModeSelectScreen = ({ navigation }) => {
     setLoading(true);
     try {
       await AsyncStorage.setItem('userMode', selectedMode);
+      await switchMode(selectedMode);
       
       if (selectedMode === 'dating') {
         navigation.navigate('DatingProfile');
@@ -630,15 +634,47 @@ const DatingProfileScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      // 1. Upload photos to Supabase Storage
+      const photoUrls = [];
+      const validPhotos = photos.filter(p => p);
+      
+      for (let i = 0; i < validPhotos.length; i++) {
+        const photo = validPhotos[i];
+        const fileName = `dating_${user.id}_${i}_${Date.now()}.jpg`;
+        const filePath = `${user.id}/${fileName}`;
+        const url = await uploadMedia(photo, 'avatars', filePath);
+        if (url) photoUrls.push(url);
+      }
+
+      // 2. Save to user_profiles table in Supabase
+      const { error: profileError } = await supabase
+        .from('user_profiles')
+        .upsert({
+          user_id: user.id,
+          about: bio.trim(),
+          occupation: occupation.trim(),
+          looking_for: lookingFor,
+          additional_photos: photoUrls,
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'user_id'
+        });
+
+      if (profileError) throw profileError;
+
+      // 3. Save to AsyncStorage for local access
       const profileData = {
         bio,
         occupation,
         lookingFor,
-        photos: photos.filter(p => p),
+        photos: photoUrls,
       };
-      
       await AsyncStorage.setItem('datingProfile', JSON.stringify(profileData));
-      navigation.navigate('Verification');
+      
+      navigation.navigate('TribeZoneSelect');
     } catch (error) {
       console.error('Save profile error:', error);
       Alert.alert('Error', 'Failed to save profile');
@@ -798,6 +834,27 @@ const MatrimonyProfileScreen = ({ navigation }) => {
     }
 
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      // 1. Save to user_profiles table in Supabase
+      const { error: profileError } = await supabase
+        .from('user_profiles')
+        .upsert({
+          user_id: user.id,
+          about: bio.trim(),
+          education: education.trim(),
+          occupation: occupation.trim(),
+          // income and timeline could be added to schema if needed, 
+          // but for now we'll save bio/edu/occ
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'user_id'
+        });
+
+      if (profileError) throw profileError;
+
+      // 2. Save to AsyncStorage
       const profileData = {
         bio,
         education,
@@ -807,7 +864,8 @@ const MatrimonyProfileScreen = ({ navigation }) => {
       };
       
       await AsyncStorage.setItem('matrimonyProfile', JSON.stringify(profileData));
-      navigation.navigate('Verification');
+      
+      navigation.navigate('TribeZoneSelect');
     } catch (error) {
       console.error('Save profile error:', error);
       Alert.alert('Error', 'Failed to save profile');
@@ -904,322 +962,7 @@ const MatrimonyProfileScreen = ({ navigation }) => {
   );
 };
 
-// Verification Screen
-const VerificationScreen = ({ navigation }) => {
-  const [hasPermission, setHasPermission] = useState(null);
-  const [cameraType, setCameraType] = useState('front');
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordedVideo, setRecordedVideo] = useState(null);
-  const [recordingTime, setRecordingTime] = useState(0);
-  const cameraRef = useRef(null);
-  const timerRef = useRef(null);
-
-  const requestCameraPermission = async () => {
-    const requestFn =
-      ExpoCamera.requestCameraPermissionsAsync ||
-      Camera.requestCameraPermissionsAsync;
-
-    if (!requestFn) {
-      setHasPermission(false);
-      return;
-    }
-
-    const { status } = await requestFn();
-    setHasPermission(status === 'granted');
-  };
-
-  useEffect(() => {
-    (async () => {
-      await requestCameraPermission();
-    })();
-  }, []);
-
-  useEffect(() => {
-    if (isRecording) {
-      timerRef.current = setInterval(() => {
-        setRecordingTime((prev) => {
-          if (prev >= 30) {
-            stopRecording();
-            return 30;
-          }
-          return prev + 1;
-        });
-      }, 1000);
-    } else {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    }
-
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
-  }, [isRecording]);
-
-  const startRecording = async () => {
-    if (!cameraRef.current) return;
-
-    if (!cameraRef.current.recordAsync) {
-      Alert.alert(
-        'Recording Unavailable',
-        'Live recording is unavailable on this device/build. Please upload a verification video from your gallery.'
-      );
-      return;
-    }
-
-    setIsRecording(true);
-    setRecordingTime(0);
-
-    try {
-      const video = await cameraRef.current.recordAsync({
-        maxDuration: 30,
-        quality: '720p',
-      });
-      setRecordedVideo(video);
-    } catch (error) {
-      console.error('Recording error:', error);
-      Alert.alert('Error', error.message || 'Failed to record video');
-      setIsRecording(false);
-    }
-  };
-
-  const stopRecording = () => {
-    if (!cameraRef.current || !cameraRef.current.stopRecording) return;
-    
-    cameraRef.current.stopRecording();
-    setIsRecording(false);
-  };
-
-  const pickVerificationVideo = async () => {
-    try {
-      const picked = await pickMedia('library', false, 'video');
-      if (!picked?.uri) return;
-      setRecordedVideo({ uri: picked.uri });
-      setRecordingTime(0);
-    } catch (error) {
-      Alert.alert('Error', error.message || 'Failed to pick verification video');
-    }
-  };
-
-  const retakeVideo = () => {
-    setRecordedVideo(null);
-    setRecordingTime(0);
-  };
-
-  const submitVerification = async () => {
-    if (!recordedVideo) {
-      Alert.alert('Error', 'Please record a verification video first');
-      return;
-    }
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      const ext = recordedVideo.uri.split('.').pop() || 'mp4';
-      const filePath = `verifications/${user.id}_${Date.now()}.${ext}`;
-      const mediaUrl = await uploadMedia(recordedVideo.uri, 'verification_media', filePath);
-
-      const { error: requestError } = await supabase
-        .from('verification_requests')
-        .insert({
-          user_id: user.id,
-          media_url: mediaUrl,
-          status: 'pending',
-          created_at: new Date().toISOString(),
-        });
-
-      if (requestError) throw requestError;
-
-      const premiumFlag = await AsyncStorage.getItem('isPremium') === 'true';
-      const isPremium = premiumFlag || isOwnerUser(user.id);
-      if (isOwnerUser(user.id)) {
-        await AsyncStorage.setItem('isPremium', 'true');
-      }
-      
-      if (isPremium) {
-        navigation.navigate('TribeZoneSelect');
-      } else {
-        // Check if user has premium access
-        Alert.alert(
-          'Premium Feature',
-          'Tribe/Zone selection is a premium feature. Would you like to upgrade?',
-          [
-            {
-              text: 'Not Now',
-              onPress: async () => {
-                try {
-                  await markProfileComplete();
-                  navigateToRootMain(navigation);
-                } catch (error) {
-                  Alert.alert('Error', error.message || 'Failed to complete onboarding');
-                }
-              }
-            },
-            { text: 'View Plans', onPress: () => console.log('Show premium plans') },
-          ]
-        );
-      }
-    } catch (error) {
-      console.error('Verification error:', error);
-      Alert.alert('Error', error.message || 'Failed to submit verification');
-    }
-  };
-
-  if (hasPermission === null) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
-
-  if (hasPermission === false) {
-    return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.title}>Camera Permission Required</Text>
-        <Text style={styles.subtitle}>
-          We need camera access to verify your identity
-        </Text>
-        <TouchableOpacity
-          style={styles.button}
-          onPress={requestCameraPermission}
-        >
-          <Text style={styles.buttonText}>Grant Permission</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.button, styles.buttonOutline, { marginTop: 12 }]}
-          onPress={pickVerificationVideo}
-        >
-          <Text style={styles.buttonOutlineText}>Upload Video Instead</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  if (!recordedVideo && !CameraView) {
-    return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.title}>Camera Unavailable</Text>
-        <Text style={styles.subtitle}>
-          This build cannot render the camera view right now. Please update the app build or use file upload instead.
-        </Text>
-        <TouchableOpacity
-          style={[styles.button, { marginTop: 12 }]}
-          onPress={pickVerificationVideo}
-        >
-          <Text style={styles.buttonText}>Upload Verification Video</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.cameraContainer}>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <View style={styles.progressContainer}>
-          <View style={styles.progressDot} />
-          <View style={styles.progressDot} />
-          <View style={[styles.progressDot, styles.progressDotActive]} />
-          <View style={styles.progressDot} />
-        </View>
-
-        <Text style={styles.title}>Identity Verification</Text>
-        <Text style={styles.subtitle}>
-          Record a short video saying "I want to find meaningful connections on Suyavaraa"
-        </Text>
-
-        {!recordedVideo ? (
-          <>
-            <View style={styles.camera}>
-              <CameraView
-                ref={cameraRef}
-                style={{ flex: 1 }}
-                facing={cameraType}
-              />
-            </View>
-
-            <View style={styles.cameraControls}>
-              <TouchableOpacity
-                style={styles.flipButton}
-                onPress={() => setCameraType(
-                  cameraType === 'front' ? 'back' : 'front'
-                )}
-              >
-                <Text style={{ fontSize: 24 }}>🔄</Text>
-              </TouchableOpacity>
-
-              {!isRecording ? (
-                <TouchableOpacity
-                  style={styles.recordButton}
-                  onPress={startRecording}
-                >
-                  <View style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: 15,
-                    backgroundColor: colors.error,
-                  }} />
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  style={styles.stopButton}
-                  onPress={stopRecording}
-                >
-                  <View style={{
-                    width: 20,
-                    height: 20,
-                    backgroundColor: colors.text,
-                  }} />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {isRecording && (
-              <Text style={[styles.timer, { textAlign: 'center' }]}>
-                {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')} / 0:30
-              </Text>
-            )}
-          </>
-        ) : (
-          <>
-            {Video ? (
-              <Video
-                source={{ uri: recordedVideo.uri }}
-                style={styles.previewVideo}
-                useNativeControls
-                resizeMode="cover"
-                isLooping
-              />
-            ) : (
-              <View style={[styles.previewVideo, { justifyContent: 'center', alignItems: 'center' }]}>
-                <Text style={styles.subtitle}>Video preview is unavailable in this build.</Text>
-              </View>
-            )}
-
-            <View style={styles.cameraControls}>
-              <TouchableOpacity
-                style={[styles.button, styles.buttonOutline, { flex: 1, marginRight: 8 }]}
-                onPress={retakeVideo}
-              >
-                <Text style={styles.buttonOutlineText}>Retake</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.button, { flex: 1, marginLeft: 8 }]}
-                onPress={submitVerification}
-              >
-                <Text style={styles.buttonText}>Submit</Text>
-              </TouchableOpacity>
-            </View>
-          </>
-        )}
-      </ScrollView>
-    </View>
-  );
-};
+// VerificationScreen logic removed - using modular VideoVerificationScreen instead.
 
 // Tribe Zone Select Screen
 const TribeZoneSelectScreen = ({ navigation }) => {
@@ -1233,8 +976,9 @@ const TribeZoneSelectScreen = ({ navigation }) => {
       const mode = await AsyncStorage.getItem('userMode');
       const { data: { user } } = await supabase.auth.getUser();
       const premiumFlag = await AsyncStorage.getItem('isPremium') === 'true';
-      const premium = premiumFlag || isOwnerUser(user?.id);
-      if (isOwnerUser(user?.id)) {
+      const isAdmin = await checkIsAdmin(user?.id);
+      const premium = premiumFlag || isAdmin;
+      if (isAdmin) {
         await AsyncStorage.setItem('isPremium', 'true');
       }
       setUserMode(mode || 'dating');
@@ -1416,11 +1160,64 @@ const TribeZoneSelectScreen = ({ navigation }) => {
   );
 };
 
+const OnboardingRouter = ({ navigation }) => {
+  useEffect(() => {
+    checkProgress();
+  }, []);
+
+  const checkProgress = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: userData } = await supabase
+        .from('users')
+        .select('full_name, verification_status')
+        .eq('id', user.id)
+        .single();
+
+      if (!userData?.full_name) {
+        navigation.replace('BasicInfo');
+        return;
+      }
+
+      if (!userData?.verification_status || userData.verification_status === 'unverified') {
+        navigation.replace('VideoVerification');
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('about')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!profile?.about) {
+        navigation.replace('ModeSelect');
+        return;
+      }
+
+      navigation.replace('TribeZoneSelect');
+    } catch (error) {
+      console.log('Check progress error:', error);
+      navigation.replace('BasicInfo');
+    }
+  };
+
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+      <ActivityIndicator size="large" color={colors.primary} />
+    </View>
+  );
+};
+
 // Onboarding Stack Navigator
-const OnboardingStack = () => {
+const OnboardingStack = ({ route }) => {
+  const initialScreen = route?.params?.screen || 'OnboardingRouter';
+  
   return (
     <Stack.Navigator
-      initialRouteName="ModeSelect"
+      initialRouteName={initialScreen}
       screenOptions={{
         headerStyle: {
           backgroundColor: colors.background,
@@ -1437,6 +1234,26 @@ const OnboardingStack = () => {
       }}
     >
       <Stack.Screen 
+        name="OnboardingRouter" 
+        component={OnboardingRouter} 
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen 
+        name="BasicInfo" 
+        component={BasicInfoScreen} 
+        options={{ title: 'Profile Info' }}
+      />
+      <Stack.Screen 
+        name="VideoVerification" 
+        component={VideoVerificationScreen} 
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen 
+        name="VerificationSuccess" 
+        component={VerificationSuccessScreen} 
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen 
         name="ModeSelect" 
         component={ModeSelectScreen} 
         options={{ title: 'Choose Mode' }}
@@ -1450,11 +1267,6 @@ const OnboardingStack = () => {
         name="MatrimonyProfile" 
         component={MatrimonyProfileScreen} 
         options={{ title: 'Matrimony Profile' }}
-      />
-      <Stack.Screen 
-        name="Verification" 
-        component={VerificationScreen} 
-        options={{ title: 'Verification' }}
       />
       <Stack.Screen 
         name="TribeZoneSelect" 

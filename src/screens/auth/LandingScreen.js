@@ -1,6 +1,6 @@
 // src/screens/auth/LandingScreen.js
 const React = require('react');
-const { View, Text, TouchableOpacity, Platform } = require('react-native');
+const { View, Text, TouchableOpacity, Platform, Image } = require('react-native');
 const { Ionicons } = require('@expo/vector-icons');
 const { LinearGradient } = require('expo-linear-gradient');
 const { supabase } = require('../../../supabase');
@@ -33,23 +33,16 @@ const LandingScreen = ({ navigation }) => {
       end={[1, 1]}
       style={AuthStyles.centerContainer}
     >
-      <View style={[AuthStyles.card, { width: '100%', maxWidth: 420 }]}> 
+      <View style={[AuthStyles.card, { width: '100%', maxWidth: 420, backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1 }]}> 
         <View style={AuthStyles.logo}>
-          <View style={{
-            width: 104,
-            height: 104,
-            borderRadius: 52,
-            backgroundColor: '#EC4899',
-            justifyContent: 'center',
-            alignItems: 'center',
-            marginBottom: 16,
-          }}>
-            <Text style={{ fontSize: 32, color: '#FFFFFF', fontWeight: '800' }}>SUYA</Text>
-          </View>
+          <Image 
+            source={require('../../../assets/logo.png')} 
+            style={{ width: 180, height: 180, resizeMode: 'contain', marginBottom: 0 }} 
+          />
         </View>
 
-        <Text style={[AuthStyles.title, { color: '#111827' }]}>Welcome to Suyavaraa</Text>
-        <Text style={[AuthStyles.subtitle, { color: '#6B7280' }]}>Build your profile and connect meaningfully.</Text>
+        <Text style={[AuthStyles.title, { color: '#FFFFFF', fontSize: 24 }]}>Welcome to Suyavaraa</Text>
+        <Text style={[AuthStyles.subtitle, { color: 'rgba(255,255,255,0.7)' }]}>Build your profile and connect meaningfully.</Text>
 
       <View style={AuthStyles.buttonContainer}>
         <TouchableOpacity

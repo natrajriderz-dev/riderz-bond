@@ -8,9 +8,8 @@ const SplashScreen = require('../../src/screens/auth/SplashScreen');
 const LandingScreen = require('../../src/screens/auth/LandingScreen');
 const LoginScreen = require('../../src/screens/auth/LoginScreen');
 const SignupScreen = require('../../src/screens/auth/SignupScreen');
-const BasicInfoScreen = require('../../src/screens/auth/BasicInfoScreen');
-const VideoVerificationScreen = require('../../src/screens/auth/VideoVerificationScreen');
-const VerificationSuccessScreen = require('../../src/screens/auth/VerificationSuccessScreen');
+const ForgotPasswordScreen = require('../../src/screens/auth/ForgotPasswordScreen');
+const ResetPasswordScreen = require('../../src/screens/auth/ResetPasswordScreen');
 
 const Stack = createStackNavigator();
 
@@ -54,19 +53,14 @@ const AuthStack = () => {
         options={{ title: '' }}
       />
       <Stack.Screen
-        name="BasicInfo"
-        component={BasicInfoScreen}
-        options={{ title: 'Profile Info' }}
+        name="ForgotPassword"
+        component={ForgotPasswordScreen}
+        options={{ title: 'Reset Password' }}
       />
       <Stack.Screen
-        name="VideoVerification"
-        component={VideoVerificationScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="VerificationSuccess"
-        component={VerificationSuccessScreen}
-        options={{ headerShown: false }}
+        name="ResetPassword"
+        component={ResetPasswordScreen}
+        options={{ title: 'New Password', headerShown: false }}
       />
     </Stack.Navigator>
   );

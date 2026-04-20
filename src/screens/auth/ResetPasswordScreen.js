@@ -1,4 +1,4 @@
-// src/screens/auth/SignupScreen.js
+// src/screens/auth/ResetPasswordScreen.js
 const React = require('react');
 const {
   View,
@@ -6,18 +6,16 @@ const {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Alert,
   ActivityIndicator,
+  Alert
 } = require('react-native');
-const { useState } = React;
-const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+const { useState, useEffect } = React;
 const { supabase } = require('../../../supabase');
 const { Ionicons } = require('@expo/vector-icons');
 const AuthStyles = require('./AuthStyles');
 const Colors = require('../../theme/Colors');
 
-const SignupScreen = ({ navigation }) => {
-  const [email, setEmail] = useState('');
+const ResetPasswordScreen = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -25,23 +23,15 @@ const SignupScreen = ({ navigation }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const handleSignup = async () => {
-    // Validation
-    if (!email || !password || !confirmPassword) {
-      setError('Please fill in all fields');
+  const handleUpdatePassword = async () => {
+    if (!password || !confirmPassword) {
+      setError('Please fill in both fields');
       return;
     }
-
-    if (!email.includes('@')) {
-      setError('Please enter a valid email');
-      return;
-    }
-
     if (password.length < 6) {
       setError('Password must be at least 6 characters');
       return;
     }
-
     if (password !== confirmPassword) {
       setError('Passwords do not match');
       return;
@@ -51,45 +41,18 @@ const SignupScreen = ({ navigation }) => {
     setError('');
 
     try {
-      // Sign up with email and password
-      const { data: { user }, error: signUpError } = await supabase.auth.signUp({
-        email: email.trim(),
-        password: password,
-        options: {
-          emailRedirectTo: 'suyavaraa://login-callback',
-          data: {
-            email_confirmed: true // Auto-confirm email
-          }
-        }
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: password
       });
 
-      if (signUpError) throw signUpError;
+      if (updateError) throw updateError;
 
-      if (user) {
-        // Auto-log user in after signup
-        const { data: { session }, error: autoLoginError } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password: password
-        });
-
-        if (autoLoginError) throw autoLoginError;
-
-        if (session) {
-          await AsyncStorage.setItem('userToken', session.access_token);
-          await AsyncStorage.setItem('userData', JSON.stringify(user));
-          navigation.replace('Onboarding');
-        }
-      }
+      Alert.alert('Success', 'Your password has been updated successfully', [
+        { text: 'OK', onPress: () => navigation.navigate('Login') }
+      ]);
     } catch (err) {
-      console.error('Signup Error:', err);
-      const { supabaseConfig } = require('../../../supabase');
-      let errorMessage = err.message || 'Failed to create account';
-      
-      if (errorMessage.includes('Network request failed')) {
-        errorMessage = `Network Error: Cannot reach ${supabaseConfig.projectHost}. Please check your internet.`;
-      }
-      
-      setError(errorMessage);
+      console.error('Update Password Error:', err);
+      setError(err.message || 'Failed to update password');
     } finally {
       setLoading(false);
     }
@@ -97,27 +60,16 @@ const SignupScreen = ({ navigation }) => {
 
   return (
     <ScrollView contentContainerStyle={AuthStyles.scrollContainer}>
-      <Text style={AuthStyles.title}>Create Account</Text>
-      <Text style={AuthStyles.subtitle}>Join Suyavaraa to find meaningful connections</Text>
+      <Text style={AuthStyles.title}>Create New Password</Text>
+      <Text style={AuthStyles.subtitle}>Enter your new password below</Text>
 
-      <Text style={AuthStyles.inputLabel}>Email</Text>
-      <TextInput
-        style={AuthStyles.input}
-        value={email}
-        onChangeText={setEmail}
-        placeholder="Enter your email"
-        placeholderTextColor={Colors.textSecondary}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
-
-      <Text style={AuthStyles.inputLabel}>Password</Text>
+      <Text style={AuthStyles.inputLabel}>New Password</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
         <TextInput
           style={[AuthStyles.input, { flex: 1, marginRight: 10 }]}
           value={password}
           onChangeText={setPassword}
-          placeholder="Create a password (min 6 characters)"
+          placeholder="New password (min 6 characters)"
           placeholderTextColor={Colors.textSecondary}
           secureTextEntry={!showPassword}
         />
@@ -136,13 +88,13 @@ const SignupScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      <Text style={AuthStyles.inputLabel}>Confirm Password</Text>
+      <Text style={AuthStyles.inputLabel}>Confirm New Password</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
         <TextInput
           style={[AuthStyles.input, { flex: 1, marginRight: 10 }]}
           value={confirmPassword}
           onChangeText={setConfirmPassword}
-          placeholder="Confirm your password"
+          placeholder="Confirm new password"
           placeholderTextColor={Colors.textSecondary}
           secureTextEntry={!showConfirmPassword}
         />
@@ -163,12 +115,8 @@ const SignupScreen = ({ navigation }) => {
 
       {error ? <Text style={AuthStyles.errorText}>{error}</Text> : null}
 
-      <TouchableOpacity style={AuthStyles.button} onPress={handleSignup} disabled={loading}>
-        <Text style={AuthStyles.buttonText}>{loading ? 'Creating Account...' : 'Sign Up'}</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-        <Text style={[AuthStyles.linkText, { textAlign: 'center', marginTop: 24 }]}>Already have an account? Login</Text>
+      <TouchableOpacity style={[AuthStyles.button, { marginTop: 20 }]} onPress={handleUpdatePassword} disabled={loading}>
+        <Text style={AuthStyles.buttonText}>{loading ? 'Updating...' : 'Update Password'}</Text>
       </TouchableOpacity>
 
       {loading && (
@@ -180,4 +128,4 @@ const SignupScreen = ({ navigation }) => {
   );
 };
 
-module.exports = SignupScreen;
+module.exports = ResetPasswordScreen;

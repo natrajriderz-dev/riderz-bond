@@ -6,13 +6,7 @@ const Colors = require('../../theme/Colors');
 
 const VerificationSuccessScreen = ({ navigation }) => {
   const handleContinue = () => {
-    const parentNavigation = navigation.getParent?.();
-    if (parentNavigation?.replace) {
-      parentNavigation.replace('Main');
-      return;
-    }
-
-    navigation.navigate('Main');
+    navigation.replace('ModeSelect');
   };
 
   return (

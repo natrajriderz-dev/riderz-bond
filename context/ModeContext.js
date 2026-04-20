@@ -2,7 +2,7 @@ const React = require('react');
 const { createContext, useState, useContext, useEffect } = React;
 const AsyncStorage = require('@react-native-async-storage/async-storage').default;
 const { supabase } = require('../supabase');
-const { isOwnerUser } = require('../src/config/privilegedAccess');
+const { checkIsAdmin } = require('../src/config/privilegedAccess');
 
 const ModeContext = createContext();
 
@@ -23,7 +23,7 @@ const ModeProvider = ({ children }) => {
       const savedActiveMode = await AsyncStorage.getItem('activeMode');
       const premiumStatus = (await AsyncStorage.getItem('isPremium')) === 'true';
       const { data: { user } } = await supabase.auth.getUser();
-      const ownerAccount = isOwnerUser(user?.id);
+      const ownerAccount = await checkIsAdmin(user?.id);
       const normalizedMode = savedMode === 'matrimony' ? 'matrimony' : 'dating';
       
       setUserMode(normalizedMode);

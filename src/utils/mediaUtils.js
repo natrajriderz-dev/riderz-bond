@@ -77,6 +77,9 @@ const pickMedia = async (source = 'library', allowsEditing = true, mediaKind = '
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = mediaKind === 'video' ? 'video/*' : 'image/*';
+        if (source === 'camera') {
+          input.setAttribute('capture', 'user'); // 'user' for front camera, 'environment' for back
+        }
         input.onchange = async (e) => {
           const file = e.target.files[0];
           if (file) {

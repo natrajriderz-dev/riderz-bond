@@ -25,7 +25,10 @@ const fishTrapService = require('../../services/fishTrapService');
 const { Ionicons } = require('@expo/vector-icons');
 const notificationService = require('../../services/notificationService');
 
+const { useMode } = require('../../../context/ModeContext');
 const MatrimonyHome = ({ navigation }) => {
+  const { userMode } = useMode();
+  const themeColor = '#D4A017'; // Gold for Matrimony
   const isFocused = useIsFocused();
   const [allProfiles, setAllProfiles] = useState([]);
   const [recentProfiles, setRecentProfiles] = useState([]);
@@ -181,7 +184,7 @@ const MatrimonyHome = ({ navigation }) => {
       <TouchableOpacity onPress={() => { setSelectedProfile(item); setShowDetailModal(true); }}>
         <Image source={{ uri: item.primary_photo_url || 'https://via.placeholder.com/140' }} style={styles.hCardPhoto} />
         {item.trust_level === 'green_verified' && (
-          <View style={styles.hCardBadge}><Ionicons name="checkmark-seal" size={12} color={Colors.primary} /></View>
+          <View style={styles.hCardBadge}><Ionicons name="checkmark-seal" size={12} color={themeColor} /></View>
         )}
         <View style={styles.hCardInfo}>
           <Text style={styles.hCardName} numberOfLines={1}>{item.display_name}</Text>
@@ -194,7 +197,7 @@ const MatrimonyHome = ({ navigation }) => {
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <ActivityIndicator size="large" color={themeColor} />
       </View>
     );
   }
@@ -218,7 +221,7 @@ const MatrimonyHome = ({ navigation }) => {
               To connect with verified users like {selectedProfile?.display_name}, you need to complete verification first.
             </Text>
             <TouchableOpacity 
-              style={styles.vBtn}
+              style={[styles.vBtn, { backgroundColor: themeColor }]}
               onPress={() => { setShowVerificationPopup(false); navigation.navigate('VideoVerification'); }}
             >
               <Text style={styles.vBtnText}>Verify Now</Text>
@@ -251,7 +254,7 @@ const MatrimonyHome = ({ navigation }) => {
         </View>
 
         <View style={styles.filterSummary}>
-          <Text style={styles.summaryText}>
+          <Text style={[styles.summaryText, { color: themeColor }]}>
             {filters.religion} • {filters.ageRange[0]}-{filters.ageRange[1]} • {filters.education}
           </Text>
         </View>

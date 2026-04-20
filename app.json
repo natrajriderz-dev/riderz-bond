@@ -9,7 +9,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#121212"
+      "backgroundColor": "#000000"
     },
     "ios": {
       "bundleIdentifier": "com.trusthub.suyavaraa",
@@ -36,7 +36,8 @@
     },
     "web": {
       "favicon": "./assets/favicon.png",
-      "https": true
+      "https": true,
+      "bundler": "metro"
     },
     "extra": {
       "eas": {

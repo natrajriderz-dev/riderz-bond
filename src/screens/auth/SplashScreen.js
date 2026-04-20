@@ -1,6 +1,6 @@
 // src/screens/auth/SplashScreen.js
 const React = require('react');
-const { View, Text, ActivityIndicator } = require('react-native');
+const { View, Text, ActivityIndicator, Image } = require('react-native');
 const { useState, useEffect } = React;
 const AsyncStorage = require('@react-native-async-storage/async-storage').default;
 const Colors = require('../../theme/Colors');
@@ -31,22 +31,15 @@ const SplashScreen = ({ navigation }) => {
   }, []);
 
   return (
-    <View style={AuthStyles.centerContainer}>
+    <View style={[AuthStyles.centerContainer, { backgroundColor: '#000' }]}>
       <View style={AuthStyles.logo}>
-        <View style={{
-          width: 120,
-          height: 120,
-          borderRadius: 60,
-          backgroundColor: Colors.primary,
-          justifyContent: 'center',
-          alignItems: 'center'
-        }}>
-          <Text style={{ fontSize: 48, color: Colors.text, fontWeight: 'bold' }}>SUYAVARAA</Text>
-        </View>
+        <Image 
+          source={require('../../../assets/logo.png')} 
+          style={{ width: 250, height: 250, resizeMode: 'contain' }} 
+        />
       </View>
-      <Text style={AuthStyles.title}>Suyavaraa</Text>
-      <Text style={AuthStyles.subtitle}>Find your perfect match</Text>
-      {isLoading && <ActivityIndicator size="large" color={Colors.primary} />}
+      <Text style={[AuthStyles.subtitle, { color: Colors.primary, marginTop: -20 }]}>Find your perfect match</Text>
+      {isLoading && <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 20 }} />}
     </View>
   );
 };
